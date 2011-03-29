@@ -4,7 +4,10 @@
 #include <math.h>
 #include "constants.h"
 
-extern double maxval(const double *head, const int len);
-extern double minval(const double *head, const int len);
+#define MAX(a, b) ((a > b) ? a : b)
+#define MIN(a, b) ((a < b) ? a : b)
+
+double maxval(const double *head, const int len);
+double minval(const double *head, const int len);
 
 #endif

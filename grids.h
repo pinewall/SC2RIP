@@ -32,16 +32,10 @@ extern double *grid2_corner_lat, *grid2_corner_lon;
 extern double *grid1_area, *grid2_area;     //total area of each grid cell
 extern double *grid1_frac, *grid2_frac;     //fractional area of grid cells participating in remapping
 
-extern bool luse_grid_centers;  //use centers for bounding box
-extern bool luse_grid1_area;    //use area from grid file
-extern bool luse_gird2_area;    //use area from grid file
-
 /* NOTE: Using three-dimention bound_box to avoid pole problem */
 extern double *grid1_bound_box, *grid2_bound_box;    //lat/lon bound box for use in restricting grid searches
 
 /* bins for restricting searches */
-extern char *restrict_type;     // type of bins to use
-extern int num_srch_bins;       // num of bins for restricted srch
 extern int *bin_addr1, *bin_addr2;  // min|max index for each cell in bin
 extern double *bin_lats, *bin_lons; // min|max lat/lon for each srch bin
 
@@ -59,5 +53,8 @@ void grid_lat_range(double * lat, int len);
 void grid_lon_range(double * lon, int len);
 // calculate bounding box for each grid
 void grid_cal_boundbox(double *boundbox, bool *grid_mask, int grid_size, double *center_lat, double *center_lon, double *corner_lat, double *corner_lon, unsigned int *grid_corners, unsigned int grid_corners_max);
-
+// init search bins
+void grid_srch_bin_init();
+// assign search bin address, that is min|max index of cell
+void grid_assign_srch_bin(double *boundbox, int *addr, int grid_size);
 #endif

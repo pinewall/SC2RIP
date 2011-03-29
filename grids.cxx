@@ -1,5 +1,6 @@
 #include "grids.h"
 #include "utils.h"
+#include "namelist.h"
 #include <iostream>
 using namespace std;
 
@@ -19,7 +20,8 @@ double *grid1_corner_lon, *grid2_corner_lon;// grid corner lon var define
 double *grid1_area, *grid2_area;            // grid area var define
 double *grid1_frac, *grid2_frac;            // grid frac var define
 double *grid1_bound_box, *grid2_bound_box;  // grid bound box var define
-
+int *bin_addr1, *bin_addr2;                 // min|max index for each cell in bin
+double *bin_lats, *bin_lons;                // min|max lat/lon for each srch bin
 // grid variables init
 void grid_init(char *grid1_file, char *grid2_file)
 {
@@ -29,6 +31,11 @@ void grid_init(char *grid1_file, char *grid2_file)
     /* compute bounding boxes for restricting future grid searches */
     grid_cal_boundbox(grid1_bound_box, grid1_mask, grid1_size, grid1_center_lat, grid1_center_lon, grid1_corner_lat, grid1_corner_lon, grid1_corners, grid1_corners_max);    // bounding box for src grid
     grid_cal_boundbox(grid2_bound_box, grid2_mask, grid2_size, grid2_center_lat, grid2_center_lon, grid2_corner_lat, grid2_corner_lon, grid2_corners, grid2_corners_max);    // bounding box for dst grid
+
+    /* assign address ranges to search bins in order to further restrict later searches */
+    grid_srch_bin_init();   // init bin_lats|bin_lons
+    grid_assign_srch_bin(grid1_bound_box, bin_addr1, grid1_size);   // assign srch bin address
+    grid_assign_srch_bin(grid2_bound_box, bin_addr2, grid2_size);
 }
 
 // src grid varibles init
@@ -377,8 +384,123 @@ void grid_cal_boundbox(double *boundbox, bool *grid_mask, int grid_size, double 
             bbdex += 2;
             index += grid_corners_max;
         }
+
+        // consider two-value longitude around 0/PI2
+        bbdex = 0;
+        for (int i = 0; i < grid_size; i++)
+        {
+            if (boundbox[bbdex+3] - boundbox[bbdex+2] > PI)
+            {
+                boundbox[bbdex+2] = ZERO;
+                boundbox[bbdex+3] = PI2;
+            }
+            bbdex += 6;
+        }
+
+        // try to check for cells that overlap poles
+        bbdex = 0;
+        for (int i = 0; i < grid_size; i++)
+        {
+            if (center_lat[i] > boundbox[bbdex+1])
+                boundbox[bbdex+1] = PIH;
+            if (center_lat[i] < boundbox[bbdex])
+                boundbox[bbdex] = -PIH;
+            bbdex += 6;
+        }
 #endif
     }
 
 }
 
+// init search bins
+void grid_srch_bin_init()
+{
+    if (strcmp(restrict_type, "latitude") == 0)
+    {
+        cout << "Using latitude bins to restrict search" << endl;
+        double dlat = PI / num_srch_bins;       // srch bin interval
+        bin_lats = new double [2 * num_srch_bins];
+        bin_lons = new double [2 * num_srch_bins];
+        bin_addr1 = new int [2 * num_srch_bins];
+        bin_addr2 = new int [2 * num_srch_bins];
+
+        int latdex = 0;
+        int londex = 0;
+        int adex1 = 0;
+        int adex2 = 0;
+        for (int i = 0; i < num_srch_bins; i++)
+        {
+            bin_lats[latdex++] = i * dlat - PIH;
+            bin_lats[latdex++] = (i+1) * dlat - PIH;
+            bin_lons[londex++] = ZERO;
+            bin_lons[londex++] = PI2;
+            bin_addr1[adex1++] = grid1_size;
+            bin_addr1[adex1++] = - ONE;
+            bin_addr2[adex2++] = grid2_size;
+            bin_addr2[adex2++] = - ONE;
+        }
+    }
+    else if (strcmp(restrict_type, "latlon") == 0)
+    {
+        cout << "Using latlon bins to restrict search" << endl;
+        double dlat = PI / num_srch_bins;
+        double dlon = PI2 / num_srch_bins;
+        int num_srch_bins_2 = num_srch_bins * num_srch_bins;
+        bin_lats = new double [2 * num_srch_bins_2];
+        bin_lons = new double [2 * num_srch_bins_2];
+        bin_addr1 = new int [2 * num_srch_bins_2];
+        bin_addr2 = new int [2 * num_srch_bins_2];
+        int latdex = 0;
+        int londex = 0;
+        int adex1 = 0;
+        int adex2 = 0;
+        for (int i = 0; i < num_srch_bins; i++)
+        {
+            for (int j = 0; j < num_srch_bins; j++)
+            {
+                bin_lats[latdex++] = j * dlat - PIH;
+                bin_lats[latdex++] = (j+1) * dlat - PIH;
+                bin_lons[londex++] = i * dlon;
+                bin_lons[londex++] = (i+1) * dlon;
+                bin_addr1[adex1++] = grid1_size;
+                bin_addr1[adex1++] = - ONE;
+                bin_addr2[adex2++] = grid2_size;
+                bin_addr2[adex2++] = - ONE;
+            }
+        }
+    }
+    else
+    {
+        cout << "Unkown search restiction method" << endl;
+        exit(1);
+    }
+}
+
+// assign search bin address, that is min|max index of cell
+void grid_assign_srch_bin(double *boundbox, int *addr, int grid_size)
+{
+    int num_srch_bins_all = 0;
+    if (strcmp(restrict_type, "latitude") == 0)
+        num_srch_bins_all = num_srch_bins;
+    else if (strcmp(restrict_type, "latlon") == 0)
+        num_srch_bins_all = num_srch_bins * num_srch_bins;
+    else
+    {
+        cout << "Unknown search restriction method" << endl;
+        exit(1);
+    }
+    int bbdex = 0;
+    for (int cell = 0; cell < grid_size; cell++)
+    {
+        for (int n = 0; n < num_srch_bins_all; n++)
+        {
+            if (boundbox[bbdex] <= bin_lats[n*2] && boundbox[bbdex+1] >= bin_lats[n*2+1])
+                if (boundbox[bbdex+2] <= bin_lons[n*2] && boundbox[bbdex+3] >= bin_lons[n*2+1])
+                {
+                    addr[n*2] = min(cell, addr[n*2]);
+                    addr[n*2+1] = max(cell, addr[n*2+1]);
+                }
+        }
+        bbdex += 6;
+    }
+}
