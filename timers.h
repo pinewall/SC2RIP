@@ -23,5 +23,10 @@ class Timers
     void print(int timer);
     void start(int timer);
     void stop(int timer);
+
+    int get_max_timers();
 };
+
+extern Timers *timers;          // tic-tac clock
+
 #endif

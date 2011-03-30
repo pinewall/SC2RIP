@@ -9,7 +9,7 @@ int num_links_map;          // actual number of links for remapping
 int max_links_map;          // current size of link arrays
 int num_wts;                // num of weights used in remapping
 int map_type;               // identifier for remapping method
-int norm_type;              // option for noramlization (conserv only)
+int norm_opt;               // option for noramlization (conserv only)
 int resize_increment;       // defalut amout to increase array size
 
 int *grid1_add_map;         // grid1 address for each link in remapping

@@ -12,7 +12,7 @@ sc2rip: $(OBJ)
 remap.o:
 	$(COMPILE) $(FLAGS) remap.cxx $(INCS) $(LIBS) -c
 remap_vars.o: grids.o utils.o
-	$(COMPILE) $(FLAGS) remap_vars.cxx $(INCS) $(LIBS) -lm -c
+	$(COMPILE) $(FLAGS) remap_vars.cxx $(INCS) $(LIBS) -c
 namelist.o:
 	$(COMPILE) $(FLAGS) namelist.cxx -c
 utils.o:

@@ -6,6 +6,9 @@
 
 using namespace std;
 
+// decleare timers
+Timers *timers = new Timers();
+
 // default construction function
 Timers::Timers()
 {
@@ -96,4 +99,9 @@ void Timers::stop(int timer)
         cputime[timer] += (cycles2[timer] - cycles1[timer]);
         strcpy(status[timer], "stopped");
     }
+}
+
+int Timers::get_max_timers()
+{
+    return max_timers;
 }

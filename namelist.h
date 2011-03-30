@@ -1,8 +1,9 @@
 #ifndef _NAMELIST_
 #define _NAMELIST_ 1
 
-extern char *grid1_file, *grid2_file;   // netCDF file name
-extern char *interp_file1, *interp_file2;   // remap wts file name
+extern char *grid1_file;        // netCDF file name
+extern char *grid2_file;        // netCDF file name
+extern char *interp_file;       // remap wts file name
 extern char *map_name;          // name of remapping
 extern char *map_method;        // remapping algorithm name
 extern char *normalize_opt;     // normalize option (conserv only)

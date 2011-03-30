@@ -17,3 +17,8 @@ double minval(const double *head, const int len)
             min = head[i];
     return min;
 }
+
+bool streqls(const char *dst, const char *src)
+{
+    return (strcmp(dst, src) == 0);
+}
