@@ -97,7 +97,7 @@ int main()
     // reduce size of remapping arrays and then write reammping info to a file
     if (num_links_map != max_links_map)
         resize_remap_vars(num_links_map - max_links_map);
-    remap_write(map_name, interp_file, output_opt);
+    write_remap(map_name, interp_file, output_opt);
 
     // test grid util
     cout << "grid1_size = " << grid1_size << endl;

@@ -14,6 +14,11 @@
 #define MAP_TYPE_BICUBIC 3
 #define MAP_TYPE_DISTWGT 4
 
+#if (1 - _NAMELIST_ )
+#define SCRIP_CONVENTION 1
+#define CSM_CONVENTION 2
+#endif
+
 extern int max_links_map;       // current size of link arrays
 extern int num_links_map;       // actual number of links for remapping
 extern int num_wts;             // num of weights used in remapping

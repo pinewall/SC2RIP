@@ -8,10 +8,10 @@ char * interp_file = "interp_remap";
 char * map_name = "T42-to-POP43";
 char * map_method = "conservative";
 char * normalize_opt = "fracarea";
-char * output_opt = "remapping_result";
+int output_opt = SCRIP_CONVENTION;
 char *restrict_type = "latitude";
 int num_srch_bins = 300;
 bool luse_grid1_area = false;
 bool luse_grid2_area = false;
 
-bool luse_grid_centers = false;
+bool luse_grid_centers;         // defined in sc2rip.cxx

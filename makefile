@@ -4,11 +4,15 @@ LINKS=-L/opt/netCDF/lib -lnetcdf -lm
 LIBS=-L/opt/netCDF/lib
 INCS=-I/opt/netCDF/include
 
-OBJ= timers.o iounits.o nc_error.o grids.o utils.o namelist.o remap_vars.o remap.o
+OBJ= timers.o iounits.o nc_error.o grids.o utils.o namelist.o remap_vars.o remap.o remap_write.o io.o
 GRID= nc_error.o iounits.o utils.o namelist.o
 all: sc2rip
 sc2rip: $(OBJ)
 	$(COMPILE) $(FLAGS) sc2rip.cxx $(OBJ) -o sc2rip $(INCS) $(LINKS)
+io.o:
+	$(COMPILE) $(FLAGS) io.cxx -c
+remap_write.o: grids.o utils.o nc_error.o remap_vars.o
+	$(COMPILE) $(FLAGS) remap_write.cxx $(INCS) $(LIBS) -c
 remap.o:
 	$(COMPILE) $(FLAGS) remap.cxx $(INCS) $(LIBS) -c
 remap_vars.o: grids.o utils.o
