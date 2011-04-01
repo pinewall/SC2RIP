@@ -6,6 +6,7 @@
 #include "remap_vars.h"
 #include "nc_error.h"
 #include "utils.h"
+#include "namelist.h"
 #include "io.h"
 
 // variables used only in remap_write.o
@@ -122,12 +123,860 @@ void write_remap(char *map_name, char *interp_file, int output_opt)
 void write_remap_scrip(char *map_name, char *interp_file, int direction)
 {
     log("--Using SCRIP convention");
+    
+    // temp variables
+    char grid1_ctmp[CHARLEN];       // character temp for grid1 names
+    char grid2_ctmp[CHARLEN];       // character temp for grid2 names
+
+    int itmp1;                      // integer temp
+    int itmp2;                      // integer temp
+    int itmp3;                      // integer temp
+    int itmp4;                      // integer temp
+
+    /* create netCDF file for mapping and define some global attributes */
+    
+    // create netCDF file named interp_file
+    ncstat = nc_create (interp_file, NC_CLOBBER, &nc_file_id);
+    ERR
+
+    // map name
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "title", len_trim(map_name), map_name);
+    ERR
+
+    // normalization option
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "normalization", len_trim(norm_opt_write), norm_opt_write);
+    ERR
+
+    // map method
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "map_method", len_trim(map_method_write), map_method_write);
+    ERR
+
+    // history
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "history", len_trim(history), history);
+    ERR
+
+    // file convention
+    strcpy(convention, "SCRIP CONVENTION");
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "conventions", len_trim(convention), convention);
+    ERR
+
+    // source and destination grid names
+    if (direction == 1)
+    {
+        strcpy(grid1_ctmp, "source_grid");
+        strcpy(grid2_ctmp, "dest_grid");
+    }
+    else
+    {
+        strcpy(grid2_ctmp, "source_grid");
+        strcpy(grid1_ctmp, "dest_grid");
+    }
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, trim(grid1_ctmp), len_trim(grid1_name), grid1_name);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, trim(grid2_ctmp), len_trim(grid2_name), grid2_name);
+    ERR
+
+    /* prepare netCDF dimention info */
+
+    // define grid size dimentions
+    if (direction == 1)
+    {
+        itmp1 = grid1_size;
+        itmp2 = grid2_size;
+    }
+    else
+    {
+        itmp1 = grid2_size;
+        itmp2 = grid1_size;
+    }
+    ncstat = nc_def_dim (nc_file_id, "src_grid_size", itmp1, &nc_srcgrdsize_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "dst_grid_size", itmp2, &nc_dstgrdsize_id);
+    ERR
+
+    // define grid rank dimensions
+    if (direction == 1)
+    {
+        itmp1 = grid1_rank;
+        itmp2 = grid2_rank;
+    }
+    else
+    {
+        itmp1 = grid2_rank;
+        itmp2 = grid1_rank;
+    }
+    ncstat = nc_def_dim (nc_file_id, "src_grid_rank", itmp1, &nc_srcgrdrank_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "dst_grid_rank", itmp2, &nc_dstgrdrank_id);
+    ERR
+
+    // define map size dimensions
+    ncstat = nc_def_dim (nc_file_id, "num_links", num_links_map, &nc_numlinks_id);
+    ERR
+
+    ncstat = nc_def_dim (nc_file_id, "num_wgts", num_wts, &nc_numwgts_id);
+    ERR
+
+    // define grid dimensions
+    ncstat = nc_def_var (nc_file_id, "src_grid_dims", NC_INT, 1, &nc_srcgrdrank_id, &nc_srcgrddims_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_dims", NC_INT, 1, &nc_dstgrdrank_id, &nc_dstgrddims_id);
+    ERR
+
+
+    /* define all arrays for netCDF descriptors */
+    
+    // define grid center latitude array
+    ncstat = nc_def_var (nc_file_id, "src_grid_center_lat", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcntrlat_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_center_lat", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcntrlat_id);
+    ERR
+
+    // define grid center longitude array
+    ncstat = nc_def_var (nc_file_id, "src_grid_center_lon", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcntrlon_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_center_lon", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcntrlon_id);
+    ERR
+
+    // define grid corner latitude array
+    ncstat = nc_def_var (nc_file_id, "src_grid_corner_lat", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcrnrlat_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_corner_lat", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcrnrlat_id);
+    ERR
+
+    // define grid corner longitude array
+    ncstat = nc_def_var (nc_file_id, "src_grid_corner_lon", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcrnrlon_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_corner_lon", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcrnrlon_id);
+    ERR
+
+    // define units for all coordinate arrays
+    if (direction == 1)
+    {
+        strcpy(grid1_ctmp, grid1_units);
+        strcpy(grid2_ctmp, grid2_units);
+    }
+    else
+    {
+        strcpy(grid1_ctmp, grid2_units);
+        strcpy(grid2_ctmp, grid1_units);
+    }
+
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcntrlat_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcntrlat_id, "units", 7, grid2_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcntrlon_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcntrlon_id, "units", 7, grid2_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcrnrlat_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcrnrlat_id, "units", 7, grid2_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcrnrlon_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcrnrlon_id, "units", 7, grid2_ctmp);
+    ERR
+    
+    // define grid mask
+    ncstat = nc_def_var (nc_file_id, "src_grid_mask", NC_INT, 1, &nc_srcgrdsize_id, &nc_srcgrdimask_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdimask_id, "units", 8, "unitless");
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_mask", NC_INT, 1, &nc_dstgrdsize_id, &nc_dstgrdimask_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdimask_id, "units", 8, "unitless");
+
+    // define grid area arrays
+    ncstat = nc_def_var (nc_file_id, "src_grid_area", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdarea_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdarea_id, "units", 14, "square radians");
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_area", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdarea_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdarea_id, "units", 14, "square radians");
+    ERR
+
+    // define grid fraction arrays
+    ncstat = nc_def_var (nc_file_id, "src_grid_frac", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdfrac_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdfrac_id, "units", 8, "unitless");
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_grid_frac", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdfrac_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdfrac_id, "units", 8, "unitless");
+    ERR
+
+    // define mapping arrays
+    ncstat = nc_def_var (nc_file_id, "src_address", NC_INT, 1, &nc_numlinks_id, &nc_srcadd_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "dst_address", NC_INT, 1, &nc_numlinks_id, &nc_dstadd_id);
+    ERR
+
+    nc_dims2_id[0] = nc_numwgts_id;
+    nc_dims2_id[1] = nc_numlinks_id;
+
+    ncstat = nc_def_var (nc_file_id, "remap_maxtrix", NC_DOUBLE, 2, &nc_dims2_id, &nc_rmpmatrix_id);
+    ERR
+
+
+    /* end definition stage */
+    ncstat = nc_enddef(nc_file_id);
+    ERR
+
+
+    /* compute integer masks */
+    if (direction == 1)
+    {
+        src_mask_int = new int [grid1_size];
+        dst_mask_int = new int [grid2_size];
+        for (int i = 0; i < grid1_size; i++)
+        {
+            if (grid1_mask[i])
+                src_mask_int[i] = 1;
+            else
+                src_mask_int[i] = 0;
+        }
+        for (int i = 0; i < grid2_size; i++)
+        {
+            if (grid2_mask[i])
+                dst_mask_int[i] = 1;
+            else
+                dst_mask_int[i] = 0;
+        }
+    }
+    else
+    {
+        src_mask_int = new int [grid2_size];
+        dst_mask_int = new int [grid1_size];
+        for (int i = 0; i < grid2_size; i++)
+        {
+            if (grid2_mask[i])
+                src_mask_int[i] = 1;
+            else
+                src_mask_int[i] = 0;
+        }
+        for (int i = 0; i < grid1_size; i++)
+        {
+            if (grid1_mask[i])
+                dst_mask_int[i] = 1;
+            else
+                dst_mask_int[i] = 0;
+        }
+    }
+
+
+    /* change units of lat/lon coordinates if input units different from radians */
+    if (streqls(strsub(grid1_units, 0, 7), "degrees") && direction == 1)
+    {
+        for (int i = 0; i < grid1_size; i++)
+        {
+            grid1_center_lat[i] /= deg2rad;
+            grid1_center_lon[i] /= deg2rad;
+        }
+        int num_corners1 = grid1_size * grid1_corners_max;
+        for (int i = 0; i < num_corners1; i++)
+        {
+            grid1_corner_lat[i] /= deg2rad;
+            grid1_corner_lon[i] /= deg2rad;
+        }
+    }
+    if (streqls(strsub(grid2_units, 0, 7), "degrees") && direction == 1)
+    {
+        for (int i = 0; i < grid2_size; i++)
+        {
+            grid2_center_lat[i] /= deg2rad;
+            grid2_center_lon[i] /= deg2rad;
+        }
+        int num_corners2 = grid2_size * grid2_corners_max;
+        for (int i = 0; i < num_corners2; i++)
+        {
+            grid2_corner_lat[i] /= deg2rad;
+            grid2_corner_lon[i] /= deg2rad;
+        }
+    }
+
+
+    /* write mapping data */
+    // write mask
+    if (direction == 1)
+    {
+        itmp1 = nc_srcgrddims_id;
+        itmp2 = nc_dstgrddims_id;
+    }
+    else
+    {
+        itmp2 = nc_srcgrddims_id;
+        itmp1 = nc_dstgrddims_id;
+    }
+
+    ncstat = nc_put_var_int (nc_file_id, itmp1, grid1_dims);
+    ERR
+    ncstat = nc_put_var_int (nc_file_id, itmp2, grid2_dims);
+    ERR
+
+    ncstat = nc_put_var_int (nc_file_id, nc_srcgrdimask_id, src_mask_int);
+    ERR
+    ncstat = nc_put_var_int (nc_file_id, nc_dstgrdimask_id, dst_mask_int);
+    ERR
+    // delete mask_int
+    delete [] src_mask_int;
+    delete [] dst_mask_int;
+
+    // write center|corner latitude|longitude
+    // write grid1 center|corner lat|lon
+    if (direction == 1)
+    {
+        itmp1 = nc_srcgrdcntrlat_id;
+        itmp2 = nc_srcgrdcntrlon_id;
+        itmp3 = nc_srcgrdcrnrlat_id;
+        itmp4 = nc_srcgrdcrnrlon_id;
+    }
+    else
+    {
+        itmp1 = nc_dstgrdcntrlat_id;
+        itmp2 = nc_dstgrdcntrlon_id;
+        itmp3 = nc_dstgrdcrnrlat_id;
+        itmp4 = nc_dstgrdcrnrlon_id;
+    }
+
+    ncstat = nc_put_var_double (nc_file_id, itmp1, grid1_center_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp2, grid1_center_lon);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp3, grid1_corner_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp4, grid1_corner_lon);
+    ERR
+    // write grid2 center|corner lat|lon
+    if (direction == 1)
+    {
+        itmp1 = nc_dstgrdcntrlat_id;
+        itmp2 = nc_dstgrdcntrlon_id;
+        itmp3 = nc_dstgrdcrnrlat_id;
+        itmp4 = nc_dstgrdcrnrlon_id;
+    }
+    else
+    {
+        itmp1 = nc_srcgrdcntrlat_id;
+        itmp2 = nc_srcgrdcntrlon_id;
+        itmp3 = nc_srcgrdcrnrlat_id;
+        itmp4 = nc_srcgrdcrnrlon_id;
+    }
+
+    ncstat = nc_put_var_double (nc_file_id, itmp1, grid2_center_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp2, grid2_center_lon);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp3, grid2_corner_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp4, grid2_corner_lon);
+    ERR
+
+    // write area and frac
+    if (direction == 1)
+    {
+        itmp1 = nc_srcgrdarea_id;
+        itmp2 = nc_srcgrdfrac_id;
+        itmp3 = nc_dstgrdarea_id;
+        itmp4 = nc_dstgrdfrac_id;
+    }
+    else
+    {
+        itmp1 = nc_dstgrdarea_id;
+        itmp2 = nc_dstgrdfrac_id;
+        itmp3 = nc_srcgrdarea_id;
+        itmp4 = nc_srcgrdfrac_id;
+    }
+
+    if (luse_grid1_area)
+        ncstat = nc_put_var_double (nc_file_id, itmp1, grid1_area_in);
+    else
+        ncstat = nc_put_var_double (nc_file_id, itmp1, grid1_area);
+    ERR
+
+    if (luse_grid2_area)
+        ncstat = nc_put_var_double (nc_file_id, itmp2, grid2_area_in);
+    else
+        ncstat = nc_put_var_double (nc_file_id, itmp2, grid2_area);
+    ERR
+    
+    ncstat = nc_put_var_double (nc_file_id, itmp3, grid1_frac);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp4, grid2_frac);
+    ERR
+
+    // write src|dst grid add, remap matrix of mappings
+    ncstat = nc_put_var_int (nc_file_id, nc_srcadd_id, grid1_add_map);
+    ERR
+    ncstat = nc_put_var_int (nc_file_id, nc_dstadd_id, grid2_add_map);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, nc_rmpmatrix_id, wts_map);
+    ERR
+
+    /* close netCDF file */
+    nc_close (nc_file_id);
+    ERR
 }
 
 // writes remap data to a netCDF file using NCAR-CSM conventions
 void write_remap_csm(char *map_name, char *interp_file, int direction)
 {
     log("--Using NCAR-CSM convention");
+    char grid1_ctmp[CHARLEN];       // character temp for grid1 names
+    char grid2_ctmp[CHARLEN];       // character temp for grid2 names
+
+    int itmp1, itmp2, itmp3, itmp4; // integer temp
+    int nc_numwgts1_id;              // extra netCDF id for additional weights
+    int nc_src_isize_id;            // extra netCDF id for ni_a
+    int nc_src_jsize_id;            // extra netCDF id for nj_a
+    int nc_dst_isize_id;            // extra netCDF id for ni_b
+    int nc_dst_jsize_id;            // extra netCDF id for nj_b
+    int nc_rmpmatrix2_id;           // extra netCDF id for high-order remap matrix
+
+    double *wts1;                   // CSM wants single array for 1st-order wts
+    double *wts2;                   // write remaining weights in different array
+
+    /* create netCDF file for mapping and define some global attributes */
+    // create netCDF file named interp_file
+    ncstat = nc_create (interp_file, NC_CLOBBER, &nc_file_id);
+    ERR
+
+    // map name
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "title", len_trim(map_name), map_name);
+    ERR
+
+    // normalization option
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "normalization", len_trim(norm_opt_write), norm_opt_write);
+    ERR
+
+    // map method
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "map_method", len_trim(map_method_write), map_method_write);
+    ERR
+
+    // history
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "history", len_trim(history), history);
+    ERR
+
+    // file convention
+    strcpy(convention, "NCAR-CSM CONVENTION");
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, "conventions", len_trim(convention), convention);
+    ERR
+
+    // source and destination grid names
+    if (direction == 1)
+    {
+        strcpy(grid1_ctmp, "domain_a");
+        strcpy(grid2_ctmp, "domain_b");
+    }
+    else
+    {
+        strcpy(grid2_ctmp, "domain_a");
+        strcpy(grid1_ctmp, "domain_b");
+    }
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, trim(grid1_ctmp), len_trim(grid1_name), grid1_name);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, NC_GLOBAL, trim(grid2_ctmp), len_trim(grid2_name), grid2_name);
+    ERR
+
+    /* prepare netCDF dimention info */
+
+    // define grid size dimentions
+    if (direction == 1)
+    {
+        itmp1 = grid1_size;
+        itmp2 = grid2_size;
+    }
+    else
+    {
+        itmp1 = grid2_size;
+        itmp2 = grid1_size;
+    }
+    ncstat = nc_def_dim (nc_file_id, "n_a", itmp1, &nc_srcgrdsize_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "n_b", itmp2, &nc_dstgrdsize_id);
+    ERR
+    
+    // define grid corner dimension
+    if (direction = 1)
+    {
+        itmp1 = grid1_corners_max;
+        itmp2 = grid2_corners_max;
+    }
+    else
+    {
+        itmp1 = grid2_corners_max;
+        itmp2 = grid1_corners_max;
+    }
+    ncstat = nc_def_dim (nc_file_id, "nv_a", itmp1, &nc_srcgrdcorn_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "nv_b", itmp2, &nc_dstgrdcorn_id);
+    ERR
+
+    // define grid rank dimensions
+    if (direction == 1)
+    {
+        itmp1 = grid1_rank;
+        itmp2 = grid2_rank;
+    }
+    else
+    {
+        itmp1 = grid2_rank;
+        itmp2 = grid1_rank;
+    }
+    ncstat = nc_def_dim (nc_file_id, "src_grid_rank", itmp1, &nc_srcgrdrank_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "dst_grid_rank", itmp2, &nc_dstgrdrank_id);
+    ERR
+
+    // define first two dims as if 2-d cartesian domain
+    if (direction == 1)
+    {
+        itmp1 = grid1_dims[0];
+        itmp3 = grid2_dims[0];
+        if (grid1_rank > 1)
+            itmp2 = grid1_dims[1];
+        else
+            itmp2 = 0;
+        if (grid2_rank > 1)
+            itmp4 = grid2_dims[1];
+        else
+            itmp4 = 0;
+    }
+    else
+    {
+        itmp3 = grid1_dims[0];
+        itmp1 = grid2_dims[0];
+        if (grid1_rank > 1)
+            itmp4 = grid1_dims[1];
+        else
+            itmp4 = 0;
+        if (grid2_rank > 1)
+            itmp2 = grid2_dims[1];
+        else
+            itmp2 = 0;
+    }
+
+    ncstat = nc_def_dim (nc_file_id, "ni_a", itmp1, &nc_src_isize_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "nj_a", itmp2, &nc_src_jsize_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "ni_b", itmp3, &nc_src_isize_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "nj_b", itmp4, &nc_src_jsize_id);
+    ERR
+
+    // define map size dimensions
+    ncstat = nc_def_dim (nc_file_id, "n_s", num_links_map, &nc_numlinks_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "num_wgts", num_wts, &nc_numwgts_id);
+    ERR
+    if (num_wts > 1)
+    {
+        ncstat = nc_def_dim (nc_file_id, "num_wgts1", num_wts-1, &nc_numwgts1_id);
+        ERR
+    }
+
+    /* define all arrays for netCDF descriptors */
+    
+    // define grid center latitude array
+    ncstat = nc_def_var (nc_file_id, "yc_a", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcntrlat_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "yc_b", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcntrlat_id);
+    ERR
+
+    // define grid center longitude array
+    ncstat = nc_def_var (nc_file_id, "xc_a", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcntrlon_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "xc_b", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcntrlon_id);
+    ERR
+
+    // define grid corner latitude array
+    ncstat = nc_def_var (nc_file_id, "yv_a", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcrnrlat_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "yv_b", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcrnrlat_id);
+    ERR
+
+    // define grid corner longitude array
+    ncstat = nc_def_var (nc_file_id, "xv_a", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcrnrlon_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "xv_b", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcrnrlon_id);
+    ERR
+
+    /* CSM wants all in degrees */
+    strcpy(grid1_units, "degrees");
+    strcpy(grid2_units, "degrees");
+
+    // define units for all coordinate arrays
+    if (direction == 1)
+    {
+        strcpy(grid1_ctmp, grid1_units);
+        strcpy(grid2_ctmp, grid2_units);
+    }
+    else
+    {
+        strcpy(grid1_ctmp, grid2_units);
+        strcpy(grid2_ctmp, grid1_units);
+    }
+
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcntrlat_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcntrlat_id, "units", 7, grid2_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcntrlon_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcntrlon_id, "units", 7, grid2_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcrnrlat_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcrnrlat_id, "units", 7, grid2_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdcrnrlon_id, "units", 7, grid1_ctmp);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdcrnrlon_id, "units", 7, grid2_ctmp);
+    ERR
+    
+    // define grid mask
+    ncstat = nc_def_var (nc_file_id, "mask_a", NC_INT, 1, &nc_srcgrdsize_id, &nc_srcgrdimask_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdimask_id, "units", 8, "unitless");
+    ERR
+    ncstat = nc_def_var (nc_file_id, "mask_b", NC_INT, 1, &nc_dstgrdsize_id, &nc_dstgrdimask_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdimask_id, "units", 8, "unitless");
+
+    // define grid area arrays
+    ncstat = nc_def_var (nc_file_id, "area_a", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdarea_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdarea_id, "units", 14, "square radians");
+    ERR
+    ncstat = nc_def_var (nc_file_id, "area_b", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdarea_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdarea_id, "units", 14, "square radians");
+    ERR
+
+    // define grid fraction arrays
+    ncstat = nc_def_var (nc_file_id, "frac_a", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdfrac_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_srcgrdfrac_id, "units", 8, "unitless");
+    ERR
+    ncstat = nc_def_var (nc_file_id, "frac_b", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdfrac_id);
+    ERR
+    ncstat = nc_put_att_text (nc_file_id, nc_dstgrdfrac_id, "units", 8, "unitless");
+    ERR
+
+    // define mapping arrays
+    ncstat = nc_def_var (nc_file_id, "col", NC_INT, 1, &nc_numlinks_id, &nc_srcadd_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "row", NC_INT, 1, &nc_numlinks_id, &nc_dstadd_id);
+    ERR
+    ncstat = nc_def_var (nc_file_id, "S", NC_DOUBLE, 1, &nc_numlinks_id, &nc_rmpmatrix_id);
+    ERR
+    if (num_wts > 1)
+    {
+        nc_dims2_id[0] = nc_numwgts1_id;
+        nc_dims2_id[1] = nc_numlinks_id;
+    }
+    ncstat = nc_def_var (nc_file_id, "S2", NC_DOUBLE, 2, &nc_dims2_id, &nc_rmpmatrix2_id);
+    ERR
+
+    /* end definition stage */
+    ncstat = nc_close (nc_file_id);
+    ERR
+
+    /* compute integer masks */
+    if (direction == 1)
+    {
+        src_mask_int = new int [grid1_size];
+        dst_mask_int = new int [grid2_size];
+        for (int i = 0; i < grid1_size; i++)
+        {
+            if (grid1_mask[i])
+                src_mask_int[i] = 1;
+            else
+                src_mask_int[i] = 0;
+        }
+        for (int i = 0; i < grid2_size; i++)
+        {
+            if (grid2_mask[i])
+                dst_mask_int[i] = 1;
+            else
+                dst_mask_int[i] = 0;
+        }
+    }
+    else
+    {
+        src_mask_int = new int [grid2_size];
+        dst_mask_int = new int [grid1_size];
+        for (int i = 0; i < grid2_size; i++)
+        {
+            if (grid2_mask[i])
+                src_mask_int[i] = 1;
+            else
+                src_mask_int[i] = 0;
+        }
+        for (int i = 0; i < grid1_size; i++)
+        {
+            if (grid1_mask[i])
+                dst_mask_int[i] = 1;
+            else
+                dst_mask_int[i] = 0;
+        }
+    }
+
+
+    /* change units of lat/lon coordinates if input units different from radians */
+    if (streqls(strsub(grid1_units, 0, 7), "degrees") && direction == 1)
+    {
+        for (int i = 0; i < grid1_size; i++)
+        {
+            grid1_center_lat[i] /= deg2rad;
+            grid1_center_lon[i] /= deg2rad;
+        }
+        int num_corners1 = grid1_size * grid1_corners_max;
+        for (int i = 0; i < num_corners1; i++)
+        {
+            grid1_corner_lat[i] /= deg2rad;
+            grid1_corner_lon[i] /= deg2rad;
+        }
+    }
+    if (streqls(strsub(grid2_units, 0, 7), "degrees") && direction == 1)
+    {
+        for (int i = 0; i < grid2_size; i++)
+        {
+            grid2_center_lat[i] /= deg2rad;
+            grid2_center_lon[i] /= deg2rad;
+        }
+        int num_corners2 = grid2_size * grid2_corners_max;
+        for (int i = 0; i < num_corners2; i++)
+        {
+            grid2_corner_lat[i] /= deg2rad;
+            grid2_corner_lon[i] /= deg2rad;
+        }
+    }
+
+
+    /* write mapping data */
+    // write mask
+    if (direction == 1)
+    {
+        itmp1 = nc_srcgrddims_id;
+        itmp2 = nc_dstgrddims_id;
+    }
+    else
+    {
+        itmp2 = nc_srcgrddims_id;
+        itmp1 = nc_dstgrddims_id;
+    }
+
+    ncstat = nc_put_var_int (nc_file_id, itmp1, grid1_dims);
+    ERR
+    ncstat = nc_put_var_int (nc_file_id, itmp2, grid2_dims);
+    ERR
+
+    ncstat = nc_put_var_int (nc_file_id, nc_srcgrdimask_id, src_mask_int);
+    ERR
+    ncstat = nc_put_var_int (nc_file_id, nc_dstgrdimask_id, dst_mask_int);
+    ERR
+    // delete mask_int
+    delete [] src_mask_int;
+    delete [] dst_mask_int;
+
+    // write center|corner latitude|longitude
+    // write grid1 center|corner lat|lon
+    if (direction == 1)
+    {
+        itmp1 = nc_srcgrdcntrlat_id;
+        itmp2 = nc_srcgrdcntrlon_id;
+        itmp3 = nc_srcgrdcrnrlat_id;
+        itmp4 = nc_srcgrdcrnrlon_id;
+    }
+    else
+    {
+        itmp1 = nc_dstgrdcntrlat_id;
+        itmp2 = nc_dstgrdcntrlon_id;
+        itmp3 = nc_dstgrdcrnrlat_id;
+        itmp4 = nc_dstgrdcrnrlon_id;
+    }
+
+    ncstat = nc_put_var_double (nc_file_id, itmp1, grid1_center_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp2, grid1_center_lon);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp3, grid1_corner_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp4, grid1_corner_lon);
+    ERR
+    // write grid2 center|corner lat|lon
+    if (direction == 1)
+    {
+        itmp1 = nc_dstgrdcntrlat_id;
+        itmp2 = nc_dstgrdcntrlon_id;
+        itmp3 = nc_dstgrdcrnrlat_id;
+        itmp4 = nc_dstgrdcrnrlon_id;
+    }
+    else
+    {
+        itmp1 = nc_srcgrdcntrlat_id;
+        itmp2 = nc_srcgrdcntrlon_id;
+        itmp3 = nc_srcgrdcrnrlat_id;
+        itmp4 = nc_srcgrdcrnrlon_id;
+    }
+
+    ncstat = nc_put_var_double (nc_file_id, itmp1, grid2_center_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp2, grid2_center_lon);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp3, grid2_corner_lat);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp4, grid2_corner_lon);
+    ERR
+
+    // write area and frac
+    if (direction == 1)
+    {
+        itmp1 = nc_srcgrdarea_id;
+        itmp2 = nc_srcgrdfrac_id;
+        itmp3 = nc_dstgrdarea_id;
+        itmp4 = nc_dstgrdfrac_id;
+    }
+    else
+    {
+        itmp1 = nc_dstgrdarea_id;
+        itmp2 = nc_dstgrdfrac_id;
+        itmp3 = nc_srcgrdarea_id;
+        itmp4 = nc_srcgrdfrac_id;
+    }
+
+    if (luse_grid1_area)
+        ncstat = nc_put_var_double (nc_file_id, itmp1, grid1_area_in);
+    else
+        ncstat = nc_put_var_double (nc_file_id, itmp1, grid1_area);
+    ERR
+
+    if (luse_grid2_area)
+        ncstat = nc_put_var_double (nc_file_id, itmp2, grid2_area_in);
+    else
+        ncstat = nc_put_var_double (nc_file_id, itmp2, grid2_area);
+    ERR
+    
+    ncstat = nc_put_var_double (nc_file_id, itmp3, grid1_frac);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, itmp4, grid2_frac);
+    ERR
+
+    // write src|dst grid add, remap matrix of mappings
+    ncstat = nc_put_var_int (nc_file_id, nc_srcadd_id, grid1_add_map);
+    ERR
+    ncstat = nc_put_var_int (nc_file_id, nc_dstadd_id, grid2_add_map);
+    ERR
+    ncstat = nc_put_var_double (nc_file_id, nc_rmpmatrix_id, wts_map);
+    ERR
+
+    /* close netCDF file */
+    nc_close (nc_file_id);
+    ERR
 }
 
 /** sorts address and weight arrays based on the 
