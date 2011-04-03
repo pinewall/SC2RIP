@@ -1043,4 +1043,178 @@ void write_remap_csm(char *map_name, char *interp_file_str, int direction)
 void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weights)
 {
     log("sort add");
+    // local variables
+    int add1_tmp, add2_tmp;     // temp for address during swap
+    int nwgt;
+    int lvl, final_lvl;         // level indexes for heap sort levels
+    int chk_lvl1, chk_lvl2, max_lvl;
+
+    double wgttmp[num_weights]; // temp for holding wts during swap
+
+    /** start at the lowest level (N/2) of the tree and sift lower
+      * values to the bottom of the tree, prompting the largest numbers
+      **/
+    int wgtdex = num_links/2;       // initial header used for weights[]
+    for (lvl = num_links/2; lvl > -1; lvl --)
+    {
+        final_lvl = lvl;
+        add1_tmp = add1[lvl];
+        add2_tmp = add2[lvl];
+        for (int i = 0; i < num_weights; i++)
+        {
+            wgttmp[i] = weights[wgtdex + i];
+        }
+        wgtdex -= num_weights;      // calculate wgtdex for next
+
+        // find the largest of the two daughters
+        while (true)
+        {
+            chk_lvl1 = 2 * final_lvl;           // left child
+            chk_lvl2 = 2 * final_lvl + 1;       // right child
+
+            if ((add1[chk_lvl1] > add1[chk_lvl2]) ||
+                    ((add1[chk_lvl1] == add1[chk_lvl2]) &&
+                     (add2[chk_lvl1] > add2[chk_lvl2])))
+            {
+                max_lvl = chk_lvl1;
+            }
+            else
+            {
+                max_lvl = chk_lvl2;
+            }
+
+            // if the parent is greater than both daughters, the correct level has been found
+            if ((add1_tmp > add1[max_lvl]) ||
+                    ((add1_tmp == add1[max_lvl]) &&
+                     (add2_tmp > add2[max_lvl])))
+            {
+                add1[final_lvl] = add1_tmp;
+                add2[final_lvl] = add2_tmp;
+                for (int i = 0; i < num_weights; i++)
+                {
+                    weights[final_lvl * num_weights + i] = wgttmp[i];
+                }
+                break;
+            }
+
+            // otherwise, promte the largest daughter and push down one level in the tree. if haven't reached the end of the tree, repeat the process. otherwise store last values and exit the loop
+            else
+            {
+                add1[final_lvl] = add1[max_lvl];
+                add2[final_lvl] = add2[max_lvl];
+                for (int i = 0; i < num_weights; i++)
+                {
+                    weights[final_lvl * num_weights + i] = weights[max_lvl * num_weights + i];
+                }
+
+                final_lvl = max_lvl;
+                if (final_lvl * 2 > num_links)
+                {
+                    add1[final_lvl] = add1_tmp;
+                    add2[final_lvl] = add2_tmp;
+                    for (int i = 0; i < num_weights; i++)
+                    {
+                        weights[final_lvl * num_weights + i] = wgttmp[i];
+                    }
+                    break;
+                }
+            }
+        }
+
+        /** now that the heap has been sorted, strip off the top (largest)
+         *  value and promote the values below
+         **/
+        int strip_wgtdex = 0;
+        for (lvl = num_links; lvl > 2; lvl --)
+        {
+            // move the top value and insert it into the correct place
+            add1_tmp = add1[lvl];
+            add1[lvl] = add1[0];
+
+            add2_tmp = add2[lvl];
+            add2[lvl] = add2[0];
+            strip_wgtdex = lvl * num_weights;   // header index
+            for (int i = 0; i < num_weights; i++)
+            {
+                wgttmp[i] = weights[strip_wgtdex + i];
+                weights[strip_wgtdex + i] = weights[i];
+            }
+
+            // as above this loop sifts the tmp values down until proper level is reached
+            final_lvl = 0;
+
+            while (true)
+            {
+                // find the largest of the two daughters
+                chk_lvl1 = 2 * final_lvl;
+                chk_lvl2 = 2 * final_lvl + 1;
+                if (chk_lvl2 >= lvl)
+                    chk_lvl2 = chk_lvl1;
+
+                if ((add1[chk_lvl1] > add1[chk_lvl2]) ||
+                        ((add1[chk_lvl1] == add1[chk_lvl2]) &&
+                         (add2[chk_lvl1] > add2[chk_lvl2])))
+                {
+                    max_lvl = chk_lvl1;
+                }
+                else
+                {
+                    max_lvl = chk_lvl2;
+                }
+
+                // if the parent is greater than both daughters, the correct level had been found
+                if ((add1_tmp > add1[max_lvl]) ||
+                        ((add1_tmp == add1[max_lvl]) &&
+                         (add2_tmp > add2[max_lvl])))
+                {
+                    add1[final_lvl] = add1_tmp;
+                    add2[final_lvl] = add2_tmp;
+                    for (int i = 0; i < num_weights; i++)
+                    {
+                        weights[final_lvl * num_weights + i] = wgttmp[i];
+                    }
+                    break;
+                }
+
+                // otherwise, promote the largest daughter and push down one level in the tree. if haven't reached the end of the tree, repeat the process. otherwise store last values and exit the loop
+                else
+                {
+                    add1[final_lvl] = add1[max_lvl];
+                    add2[final_lvl] = add2[max_lvl];
+                    for (int i = 0; i < num_weights; i++)
+                    {
+                        weights[final_lvl * num_weights + i] = weights[max_lvl * num_weights + i];
+                    }
+
+                    final_lvl = max_lvl;
+                    if (final_lvl * 2 > lvl)
+                    {
+                        add1[final_lvl] = add1_tmp;
+                        add2[final_lvl] = add2_tmp;
+                        for (int i = 0; i < num_weights; i++)
+                        {
+                            weights[final_lvl * num_weights + i] = wgttmp[i];
+                        }
+                        break;
+                    }   
+                }
+            }
+        }
+    }
+
+    // swap the last two entries
+    add1_tmp = add1[1];
+    add1[1] = add1[0];
+    add1[0] = add1_tmp;
+
+    add2_tmp = add2[1];
+    add2[1] = add2[0];
+    add2[0] = add2_tmp;
+
+    for (int i = 0; i < num_weights; i++)
+    {
+        wgttmp[i] = weights[num_weights + i];
+        weights[num_weights + i] = weights[i];
+        weights[i] = wgttmp[i];
+    }
 }
