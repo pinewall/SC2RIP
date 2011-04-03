@@ -51,13 +51,13 @@ int nc_srcadd_id;               // id for map source address
 int nc_dstadd_id;               // id for map destination address
 int nc_rmpmatrix_id;            // id for remapping matrix
 
-int nc_dims2_id[2];             // netCDF ids for 2d array dims
+int *nc_dims2_id;               // netCDF ids for 2d array dims
 
 
 // call correct output routine based on output format choice (scrip or csm)
-void write_remap(char *map_name, char *interp_file, int output_opt)
+void write_remap(char *map_name, char *interp_file_str, int output_opt)
 {
-    printf("Write_Remap");
+    log("Write_Remap");
 
     // define some common variables to be used in all routines
     switch (norm_opt)           // normalization option
@@ -97,20 +97,21 @@ void write_remap(char *map_name, char *interp_file, int output_opt)
 
                                 // date & history
     sysdate(cdate);
-    sprintf(history, "Created: %s\n", cdate);
+    strcpy(history, "Created: ");
+    strcat(history, cdate);
 
 
     // sort address and weight arrays
-    sort_add(grid2_add_map, grid1_add_map, wts_map);
+    sort_add(grid2_add_map, grid1_add_map, wts_map, num_links_map, num_wts);
 
     // call appropriate output routine
     switch (output_opt)
     {
         case SCRIP_CONVENTION:
-            write_remap_scrip(map_name, interp_file, 1);
+            write_remap_scrip(map_name, interp_file_str, 1);
             break;
         case CSM_CONVENTION:
-            write_remap_csm  (map_name, interp_file, 1);
+            write_remap_csm  (map_name, interp_file_str, 1);
             break;
         default:
             log("Unknown output file convention");
@@ -120,7 +121,7 @@ void write_remap(char *map_name, char *interp_file, int output_opt)
 }
 
 // writes remap data to a netCDF file using SCRIP conventions
-void write_remap_scrip(char *map_name, char *interp_file, int direction)
+void write_remap_scrip(char *map_name, char *interp_file_str, int direction)
 {
     log("--Using SCRIP convention");
     
@@ -136,7 +137,7 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
     /* create netCDF file for mapping and define some global attributes */
     
     // create netCDF file named interp_file
-    ncstat = nc_create (interp_file, NC_CLOBBER, &nc_file_id);
+    ncstat = nc_create (interp_file_str, NC_CLOBBER, &nc_file_id);
     ERR
 
     // map name
@@ -193,6 +194,22 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
     ERR
     ncstat = nc_def_dim (nc_file_id, "dst_grid_size", itmp2, &nc_dstgrdsize_id);
     ERR
+    
+    // define grid corner dimension
+    if (direction == 1)
+    {
+        itmp1 = grid1_corners_max;
+        itmp2 = grid2_corners_max;
+    }
+    else
+    {
+        itmp2 = grid1_corners_max;
+        itmp1 = grid2_corners_max;
+    }
+    ncstat = nc_def_dim (nc_file_id, "src_grid_corners", itmp1, &nc_srcgrdcorner_id);
+    ERR
+    ncstat = nc_def_dim (nc_file_id, "dst_grid_corners", itmp2, &nc_dstgrdcorner_id);
+    ERR
 
     // define grid rank dimensions
     if (direction == 1)
@@ -223,7 +240,6 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
     ncstat = nc_def_var (nc_file_id, "dst_grid_dims", NC_INT, 1, &nc_dstgrdrank_id, &nc_dstgrddims_id);
     ERR
 
-
     /* define all arrays for netCDF descriptors */
     
     // define grid center latitude array
@@ -238,16 +254,23 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
     ncstat = nc_def_var (nc_file_id, "dst_grid_center_lon", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcntrlon_id);
     ERR
 
-    // define grid corner latitude array
-    ncstat = nc_def_var (nc_file_id, "src_grid_corner_lat", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcrnrlat_id);
+    // define grid corner lat/lon arrays
+    nc_dims2_id = new int [2];
+
+    // define source grid corner latitude|longitude array
+    nc_dims2_id[1] = nc_srcgrdcorner_id;
+    nc_dims2_id[0] = nc_srcgrdsize_id;
+    ncstat = nc_def_var (nc_file_id, "src_grid_corner_lat", NC_DOUBLE, 2, nc_dims2_id, &nc_srcgrdcrnrlat_id);
     ERR
-    ncstat = nc_def_var (nc_file_id, "dst_grid_corner_lat", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcrnrlat_id);
+    ncstat = nc_def_var (nc_file_id, "src_grid_corner_lon", NC_DOUBLE, 2, nc_dims2_id, &nc_srcgrdcrnrlon_id);
     ERR
 
-    // define grid corner longitude array
-    ncstat = nc_def_var (nc_file_id, "src_grid_corner_lon", NC_DOUBLE, 1, &nc_srcgrdsize_id, &nc_srcgrdcrnrlon_id);
+    // define destination grid corner latitude|longitude array
+    nc_dims2_id[1] = nc_dstgrdcorner_id;
+    nc_dims2_id[0] = nc_dstgrdsize_id;
+    ncstat = nc_def_var (nc_file_id, "dst_grid_corner_lat", NC_DOUBLE, 2, nc_dims2_id, &nc_dstgrdcrnrlat_id);
     ERR
-    ncstat = nc_def_var (nc_file_id, "dst_grid_corner_lon", NC_DOUBLE, 1, &nc_dstgrdsize_id, &nc_dstgrdcrnrlon_id);
+    ncstat = nc_def_var (nc_file_id, "dst_grid_corner_lon", NC_DOUBLE, 2, nc_dims2_id, &nc_dstgrdcrnrlon_id);
     ERR
 
     // define units for all coordinate arrays
@@ -314,10 +337,11 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
     ncstat = nc_def_var (nc_file_id, "dst_address", NC_INT, 1, &nc_numlinks_id, &nc_dstadd_id);
     ERR
 
-    nc_dims2_id[0] = nc_numwgts_id;
-    nc_dims2_id[1] = nc_numlinks_id;
+    nc_dims2_id = new int[2];
+    nc_dims2_id[1] = nc_numwgts_id;
+    nc_dims2_id[0] = nc_numlinks_id;
 
-    ncstat = nc_def_var (nc_file_id, "remap_maxtrix", NC_DOUBLE, 2, &nc_dims2_id, &nc_rmpmatrix_id);
+    ncstat = nc_def_var (nc_file_id, "remap_maxtrix", NC_DOUBLE, 2, nc_dims2_id, &nc_rmpmatrix_id);
     ERR
 
 
@@ -368,7 +392,7 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
 
 
     /* change units of lat/lon coordinates if input units different from radians */
-    if (streqls(strsub(grid1_units, 0, 7), "degrees") && direction == 1)
+    if (streqls(grid1_units, "degrees", 0, 7) && direction == 1)
     {
         for (int i = 0; i < grid1_size; i++)
         {
@@ -382,7 +406,7 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
             grid1_corner_lon[i] /= deg2rad;
         }
     }
-    if (streqls(strsub(grid2_units, 0, 7), "degrees") && direction == 1)
+    if (streqls(grid2_units, "degrees", 0, 7) && direction == 1)
     {
         for (int i = 0; i < grid2_size; i++)
         {
@@ -515,13 +539,16 @@ void write_remap_scrip(char *map_name, char *interp_file, int direction)
     ncstat = nc_put_var_double (nc_file_id, nc_rmpmatrix_id, wts_map);
     ERR
 
+    // delete nc_dims_id array
+    delete [] nc_dims2_id;
+
     /* close netCDF file */
     nc_close (nc_file_id);
     ERR
 }
 
 // writes remap data to a netCDF file using NCAR-CSM conventions
-void write_remap_csm(char *map_name, char *interp_file, int direction)
+void write_remap_csm(char *map_name, char *interp_file_str, int direction)
 {
     log("--Using NCAR-CSM convention");
     char grid1_ctmp[CHARLEN];       // character temp for grid1 names
@@ -540,7 +567,7 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
 
     /* create netCDF file for mapping and define some global attributes */
     // create netCDF file named interp_file
-    ncstat = nc_create (interp_file, NC_CLOBBER, &nc_file_id);
+    ncstat = nc_create (interp_file_str, NC_CLOBBER, &nc_file_id);
     ERR
 
     // map name
@@ -599,7 +626,7 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
     ERR
     
     // define grid corner dimension
-    if (direction = 1)
+    if (direction == 1)
     {
         itmp1 = grid1_corners_max;
         itmp2 = grid2_corners_max;
@@ -609,9 +636,9 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
         itmp1 = grid2_corners_max;
         itmp2 = grid1_corners_max;
     }
-    ncstat = nc_def_dim (nc_file_id, "nv_a", itmp1, &nc_srcgrdcorn_id);
+    ncstat = nc_def_dim (nc_file_id, "nv_a", itmp1, &nc_srcgrdcorner_id);
     ERR
-    ncstat = nc_def_dim (nc_file_id, "nv_b", itmp2, &nc_dstgrdcorn_id);
+    ncstat = nc_def_dim (nc_file_id, "nv_b", itmp2, &nc_dstgrdcorner_id);
     ERR
 
     // define grid rank dimensions
@@ -773,12 +800,13 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
     ERR
     ncstat = nc_def_var (nc_file_id, "S", NC_DOUBLE, 1, &nc_numlinks_id, &nc_rmpmatrix_id);
     ERR
+    nc_dims2_id = new int[2];
     if (num_wts > 1)
     {
-        nc_dims2_id[0] = nc_numwgts1_id;
-        nc_dims2_id[1] = nc_numlinks_id;
+        nc_dims2_id[1] = nc_numwgts1_id;
+        nc_dims2_id[0] = nc_numlinks_id;
     }
-    ncstat = nc_def_var (nc_file_id, "S2", NC_DOUBLE, 2, &nc_dims2_id, &nc_rmpmatrix2_id);
+    ncstat = nc_def_var (nc_file_id, "S2", NC_DOUBLE, 2, nc_dims2_id, &nc_rmpmatrix2_id);
     ERR
 
     /* end definition stage */
@@ -827,7 +855,7 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
 
 
     /* change units of lat/lon coordinates if input units different from radians */
-    if (streqls(strsub(grid1_units, 0, 7), "degrees") && direction == 1)
+    if (streqls(grid1_units, "degrees", 0, 7) && direction == 1)
     {
         for (int i = 0; i < grid1_size; i++)
         {
@@ -841,7 +869,7 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
             grid1_corner_lon[i] /= deg2rad;
         }
     }
-    if (streqls(strsub(grid2_units, 0, 7), "degrees") && direction == 1)
+    if (streqls(grid2_units, "degrees", 0, 7) && direction == 1)
     {
         for (int i = 0; i < grid2_size; i++)
         {
@@ -971,8 +999,37 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
     ERR
     ncstat = nc_put_var_int (nc_file_id, nc_dstadd_id, grid2_add_map);
     ERR
-    ncstat = nc_put_var_double (nc_file_id, nc_rmpmatrix_id, wts_map);
-    ERR
+
+    if (num_wts == 1)
+    {
+        ncstat = nc_put_var_double (nc_file_id, nc_rmpmatrix_id, wts_map);
+        ERR
+    }
+    else
+    {
+        // allocate weights arrays
+        wts1 = new double [num_links_map];
+        wts2 = new double [(num_wts-1) * num_links_map];
+        int wtsdex = 0;
+        int wts2dex = 0;
+        for (int i = 0; i < num_links_map; i++)
+        {
+            wts1[i] = wts_map[wtsdex];
+            for (int j = 1; j < num_wts; j++)
+            {
+                wts2[wts2dex++] = wts_map[wtsdex + j];
+            }
+            wtsdex += num_wts;
+        }
+        ncstat = nc_put_var_double (nc_file_id, nc_rmpmatrix_id, wts1);
+        ERR
+        ncstat = nc_put_var_double (nc_file_id, nc_rmpmatrix2_id, wts2);
+        ERR
+
+        // delete array wts1, wts2
+        delete [] wts1;
+        delete [] wts2;
+    }
 
     /* close netCDF file */
     nc_close (nc_file_id);
@@ -983,7 +1040,7 @@ void write_remap_csm(char *map_name, char *interp_file, int direction)
   * destination address with the source address as a secondary 
   * sorting criterion. the method is a standard heap sort.
   **/
-void sort_add(int *add1, int *add2, double *weights)
+void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weights)
 {
-    log("sort_add");
+    log("sort add");
 }

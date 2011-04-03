@@ -14,6 +14,6 @@ void write_remap_csm(char *map_name, char *interp_file, int direction);
   * destination address with the source address as a secondary 
   * sorting criterion. the method is a standard heap sort.
   **/
-void sort_add(int *add1, int *add2, double *weights);
+void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weights);
 
 #endif

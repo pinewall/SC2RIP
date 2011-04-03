@@ -31,7 +31,7 @@ extern double *grid1_corner_lat, *grid1_corner_lon;
 extern double *grid2_corner_lat, *grid2_corner_lon;
 extern double *grid1_area, *grid2_area;     //total area of each grid cell
 extern double *grid1_frac, *grid2_frac;     //fractional area of grid cells participating in remapping
-
+extern double *grid1_area_in, *grid2_area_in;   // total area of each grid cell from netCDF file
 /* NOTE: Using three-dimention bound_box to avoid pole problem */
 extern double *grid1_bound_box, *grid2_bound_box;    //lat/lon bound box for use in restricting grid searches
 

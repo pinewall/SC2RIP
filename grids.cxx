@@ -18,6 +18,7 @@ double *grid1_center_lon, *grid2_center_lon;// grid center lon var define
 double *grid1_corner_lat, *grid2_corner_lat;// grid corner lat var define
 double *grid1_corner_lon, *grid2_corner_lon;// grid corner lon var define
 double *grid1_area, *grid2_area;            // grid area var define
+double *grid1_area_in, *grid2_area_in;      // grid area in var define
 double *grid1_frac, *grid2_frac;            // grid frac var define
 double *grid1_bound_box, *grid2_bound_box;  // grid bound box var define
 int *bin_addr1, *bin_addr2;                 // min|max index for each cell in bin
@@ -98,6 +99,7 @@ void grid_init_src(char *grid_src_file)
     // allocate cell mask, area; read mask
     grid1_mask = new bool[grid1_size];
     grid1_area = new double[grid1_size];
+    grid1_area_in = new double[grid1_size];
     grid1_frac = new double[grid1_size];
     imask = new int[grid1_size];
     ncstat = nc_inq_varid(nc_grid_id, "grid_imask", &nc_grdimask_id);
@@ -236,6 +238,7 @@ void grid_init_dst(char *grid_dst_file)
     // allocate cell mask, area; read mask
     grid2_mask = new bool[grid2_size];
     grid2_area = new double[grid2_size];
+    grid2_area_in = new double[grid2_size];
     grid2_frac = new double[grid2_size];
     imask = new int[grid2_size];
     ncstat = nc_inq_varid(nc_grid_id, "grid_imask", &nc_grdimask_id);

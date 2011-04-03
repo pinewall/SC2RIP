@@ -13,6 +13,8 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <iostream>
+
+#define _DEBUG_ 1
 using namespace std;
 int main()
 {
@@ -99,6 +101,7 @@ int main()
         resize_remap_vars(num_links_map - max_links_map);
     write_remap(map_name, interp_file, output_opt);
 
+#if _DEBUG_
     // test grid util
     cout << "grid1_size = " << grid1_size << endl;
     cout << "grid1_rank = " << grid1_rank << endl;
@@ -164,7 +167,7 @@ int main()
         for (int j = 0; j < grid2_corners_max; j++)
         {
             //cout << grid2_center_lat[index + j] << "\t";
-            printf("%1.5f  ", grid2_center_lat[index + j]);
+            printf("%1.5f  ", grid2_corner_lat[index + j]);
         }
         //cout << endl;
         printf("\n");
@@ -177,7 +180,7 @@ int main()
         for (int j = 0; j < grid2_corners_max; j++)
         {
             //cout << grid2_corner_lat[index + j] << "\t";
-            printf("%1.5f  ", grid2_corner_lat[index + j]);
+            printf("%1.5f  ", grid2_corner_lon[index + j]);
         }
         //cout << endl;
         printf("\n");
@@ -202,5 +205,6 @@ int main()
         printf("%1.5f  ", grid2_bound_box[index++]);
         printf("%1.5f\n", grid2_bound_box[index++]);
     }
+#endif
     return 0;
 }

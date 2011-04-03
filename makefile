@@ -30,4 +30,4 @@ iounits.o:
 timers.o:
 	$(COMPILE) $(FLAGS) timers.cxx -c
 clean:
-	rm *.o sc2rip
+	rm *.o sc2rip interp_remap.nc

@@ -30,6 +30,41 @@ bool streqls(const char *dst, const char *src)
     return (strcmp(dst, src) == 0);
 }
 
+// part string equals
+bool streqls(const char *dst, const char *src, int dststart, int dstend)
+{
+    int dstlen = dstend - dststart + 1;
+    char * dst_part = new char[dstlen + 1];
+    for (int i = 0; i < dstlen; i++)
+    {
+        dst_part[i] = dst[dststart + i];
+    }
+    dst_part[dstlen] = '\0';
+    return (strcmp(dst_part, src) == 0);
+}
+
+// string trim
+char* trim(char *str)
+{
+    int len = strlen(str);  // string length
+    int count = 0;
+    for (int i = len - 1; i > -1; i--)
+    {
+        if (str[i] == ' ')
+            count ++;
+        else
+            break;
+    }
+    if (count != 0)
+        str[len - count] = '\0';
+    return str;
+}
+
+// string trim len
+int len_trim(char *str)
+{
+    return strlen(trim(str));
+}
 // fetch date string; datestr length must exceed 10
 void sysdate(char *datestr)
 {
