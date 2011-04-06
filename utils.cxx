@@ -40,7 +40,9 @@ bool streqls(const char *dst, const char *src, int dststart, int dstend)
         dst_part[i] = dst[dststart + i];
     }
     dst_part[dstlen] = '\0';
-    return (strcmp(dst_part, src) == 0);
+    bool ret = strcmp(dst_part, src) == 0;
+    delete [] dst_part;
+    return ret;
 }
 
 // string trim
@@ -75,19 +77,26 @@ void sysdate(char *datestr)
     time(&t);
     a = localtime(&t);
     char day[2], mon[2], year[4];
-    day[0] = a->tm_mday / 10;
-    day[1] = a->tm_mday % 10;
-    mon[0] = a->tm_mon / 10;
-    mon[1] = a->tm_mon % 10;
-    year[3] = (a->tm_year + 1900) % 10;
-    year[2] = ((a->tm_year + 1900) / 10 ) % 10;
-    year[1] = ((a->tm_year + 1900) / 100) % 10;
-    year[0] = a->tm_year / 1000;
-    strcpy(datestr, mon);
-    strcat(datestr, "-");
-    strcat(datestr, day);
-    strcat(datestr, "-");
-    strcat(datestr, year);
+    day[0] = a->tm_mday / 10 + '0';             // day from 1 to 31
+    day[1] = a->tm_mday % 10 + '0';
+    mon[0] = (a->tm_mon + 1) / 10 + '0';        // month from 0 to 11
+    mon[1] = (a->tm_mon + 1)% 10 + '0';
+    year[3] = (a->tm_year + 1900) % 10 + '0';
+    year[2] = ((a->tm_year + 1900) / 10 ) % 10 + '0';   // year since 1900
+    year[1] = ((a->tm_year + 1900) / 100) % 10 + '0';
+    year[0] = (a->tm_year + 1900) / 1000 + '0';
+    int index = 0;
+    datestr[index++] = mon[0];
+    datestr[index++] = mon[1];
+    datestr[index++] = '-';
+    datestr[index++] = day[0];
+    datestr[index++] = day[1];
+    datestr[index++] = '-';
+    datestr[index++] = year[0];
+    datestr[index++] = year[1];
+    datestr[index++] = year[2];
+    datestr[index++] = year[3];
+    datestr[index++] = '\0';
 }
 
 // fetch time string; timestr length must exceed 8

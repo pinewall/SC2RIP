@@ -97,6 +97,7 @@ void write_remap(char *map_name, char *interp_file_str, int output_opt)
 
                                 // date & history
     sysdate(cdate);
+    printf("date: %s\n", cdate);
     strcpy(history, "Created: ");
     strcat(history, cdate);
 

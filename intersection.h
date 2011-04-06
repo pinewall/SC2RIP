@@ -1,6 +1,12 @@
 #ifndef _INTERSECTION_
 #define _INTERSECTION_ 1
 
+// declare extern variables
+extern int last_loc;        // save location when crossing threshold
+extern bool lthresh;        // flags segments crossing threshold bndy
+double intrsct_lat_off;     // latitude coords offset for next search
+double intrsct_lon_off;     // longitude coords offset for next search
+
 /** this routine finds the next intersection of a destination grid
   * line with the line segment given by beglon, endlon, etc.
   * a coincidence flag is returnd if the segment is entirely

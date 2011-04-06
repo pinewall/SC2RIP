@@ -57,8 +57,80 @@ void remap_conserv()
     /* correct for situations where N/S pole not explicitly included in grid (i.e. as a grid corner point). if pole is missing from only one grid, need to correct only the area and centroid of that grid. if missing from both, do complete weight calculation */
     
     /* finish centroid computation */
+    for (int n = 0; n < grid1_size; n++)
+    {
+        if (grid1_area[n] > EPS)
+        {
+            grid1_centroid_lat[n] /= grid1_area[n];
+            grid1_centroid_lon[n] /= grid1_area[n];
+        }
+    }
+
+    for (int n = 0; n < grid2_size; n++)
+    {
+        if (grid2_area[n] > EPS)
+        {
+            grid2_centroid_lat[n] /= grid2_area[n];
+            grid2_centroid_lon[n] /= grid2_area[n];
+        }
+    }
 
     /* include centroids in weights and normalize using destination area if required */
+    for (int n = 0; n < num_links_map; n++)
+    {
+        grid1_add = grid1_add_map[n];
+        grid2_add = grid2_add_map[n];
+        for (int nwgt = 0; nwgt < num_wts; nwgt ++)
+        {
+            weights[nwgt] = wts_map[n*num_wts + nwgt];
+        }
+
+        switch (norm_opt)
+        {
+            case NORM_OPT_DESTAREA:
+                if (grid2_area[grid2_add] > EPS)
+                {
+                    if (luse_grid2_area)
+                        norm_factor = ONE / grid2_area_in[grid2_add];
+                    else
+                        norm_factor = ONE / grid2_area[grid2_add];
+                }
+                else
+                    norm_factor = ZERO;
+                break;
+            case NORM_OPT_FRACAREA:
+                if (grid2_area[grid2_add] > EPS)
+                {
+                    if (luse_grid2_area)
+                        norm_factor = grid2_area[grid2_add] /
+                            (grid2_frac[grid2_add] * grid2_area_in[grid2_add]);
+                    else
+                        norm_factor = ONE / grid2_frac[grid2_add];
+                }
+                else
+                    norm_factor = ZERO;
+                break;
+            case NORM_OPT_NONE:
+                norm_factor = ONE;
+                break;
+            default:
+                norm_factor = ONE;
+        }
+
+        wts_map[n*num_wts] = weights[0] * norm_factor;
+        wts_map[n*num_wts + 1] = (weights[1] - weights[0]*grid1_centroid_lat[grid1_add]) * norm_factor;
+        wts_map[n*num_wts + 2] = (weights[2] - weights[0]*grid1_centroid_lon[grid1_add]) * norm_factor;
+        
+        printf("Total number of links = %d\n", num_links_map);
+
+        for (int n = 0; n < grid1_size; n++)
+            if (grid1_area[n] > EPS)
+                grid1_frac[n] /= grid1_area[n];
+
+        for (int n = 0; n < grid2_size; n++)
+            if (grid2_area[n] > EPS)
+                grid2_frac[n] /= grid2_area[n];
+    }
 
     /* perform some error checking on final weights */
     // check grid1 area and centroid lat
