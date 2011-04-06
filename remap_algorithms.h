@@ -3,7 +3,6 @@
 
 #include "remap_conserv.h"
 
-void remap_conserv() {};
 void remap_bilinear() {};
 void remap_bicubic() {};
 void remap_distwgt() {};

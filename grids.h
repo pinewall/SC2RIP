@@ -11,6 +11,11 @@
 
 #define _2D_BOUND_BOX_ 1
 #define _3D_BOUND_BOX_ (1 - _2D_BOUND_BOX_)
+#if _2D_BOUND_BOX_
+    #define BOUNDBOX_SIZE 4
+#else
+    #define BOUNDBOX_SIZE 6
+#endif
 #define deg2rad (PI/180)
 #define     ERR     netcdf_error_handler(ncstat);
 

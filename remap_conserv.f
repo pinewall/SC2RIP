@@ -61,7 +61,7 @@
      &        srch_add       ! global address of cells in srch arrays
 
       real (kind=dbl_kind), parameter :: 
-     &     north_thresh = 2.00_dbl_kind, ! threshold for coord transf.
+     &     north_thresh = 1.45_dbl_kind, ! threshold for coord transf.
      &     south_thresh =-2.00_dbl_kind  ! threshold for coord transf.
 
       real (kind=dbl_kind), dimension(:,:), allocatable, save ::
@@ -91,7 +91,7 @@
 !-----------------------------------------------------------------------
 
       integer (kind=int_kind), parameter :: 
-     &        max_subseg = 1000   ! max number of subsegments per segment
+     &        max_subseg = 10000 ! max number of subsegments per segment
                                  ! to prevent infinite loop
 
       integer (kind=int_kind) :: 
@@ -147,16 +147,6 @@
 !     integrate around each cell on grid1
 !
 !-----------------------------------------------------------------------
-      
-      !change: check grid info
-      print *, "grid1_size", grid1_size
-      print *, "grid2_size", grid2_size
-      print *, "grid1_corner_lon"
-      print *, grid1_corner_lon
-      print *, "grid1_corner_lat"
-      print *, grid1_corner_lat
-      print *, "grid1_bound_box"
-      print *, grid1_bound_box
 
       allocate(srch_mask(grid2_size))
 
@@ -219,9 +209,6 @@
         !*** integrate around this cell
         !***
 
-        !change
-        grid1_corners = grid1_corners_set(grid1_add)
-        print *, "grid1@", grid1_add, "corners", grid1_corners
         do corner = 1,grid1_corners
           next_corn = mod(corner,grid1_corners) + 1
 
@@ -276,8 +263,6 @@
 
             num_subseg = num_subseg + 1
             if (num_subseg > max_subseg) then
-              !change
-              print *, 'Error@grid1: ', grid1_add
               stop 'integration stalled: num_subseg exceeded limit'
             endif
 
@@ -293,11 +278,6 @@
             call timer_stop(2)
             lbegin = .false.
 
-            !change
-            if (grid1_add == 1) then
-                print *, "grid1@1", beglat, beglon, endlat, endlon,
-     &                  "grid2@", grid2_add, num_subseg
-            endif
             !***
             !*** compute line integral for this subsegment.
             !***
@@ -397,8 +377,6 @@
       allocate(srch_mask(grid1_size))
 
       print *,'grid2 sweep '
-        !change
-        print *, "grid1_corners", maxval(grid1_corners_set)
       do grid2_add = 1,grid2_size
 
         !***
@@ -433,9 +411,10 @@
 
           if (srch_mask(grid1_add)) num_srch_cells = num_srch_cells+1
         end do
+
         allocate(srch_add(num_srch_cells),
-     &      srch_corner_lat(maxval(grid1_corners_set),num_srch_cells),
-     &      srch_corner_lon(maxval(grid1_corners_set),num_srch_cells))
+     &           srch_corner_lat(grid1_corners,num_srch_cells),
+     &           srch_corner_lon(grid1_corners,num_srch_cells))
 
         n = 0
         gather2: do grid1_add = min_add,max_add
@@ -447,13 +426,7 @@
           endif
         end do gather2
         call timer_stop(5)
-        !change
-        if (grid2_add == 1564) then
-            print *, "srch@1564"
-            print *, "srch_add", srch_add
-            print *, "srch_lat", srch_corner_lat
-            print *, "srch_lon", srch_corner_lon
-        endif
+
         !***
         !*** integrate around this cell
         !***
@@ -504,10 +477,9 @@
             !*** prevent infinite loops if integration gets stuck
             !*** near cell or threshold boundary
             !***
+
             num_subseg = num_subseg + 1
             if (num_subseg > max_subseg) then
-              !change
-              print *, 'Error@grid2: ', grid2_add
               stop 'integration stalled: num_subseg exceeded limit'
             endif
 
@@ -520,11 +492,6 @@
             call intersection(grid1_add,intrsct_lat,intrsct_lon,lcoinc,
      &                        beglat, beglon, endlat, endlon, begseg,
      &                        lbegin, lrevers)
-            !change
-            if (grid2_add == 1564) then
-                print *, "grid2@", grid2_add, beglon, beglat, 
-     &              endlon, endlat, "grid1@", grid1_add, num_subseg
-            endif
             call timer_stop(6)
             lbegin = .false.
 
@@ -1082,8 +1049,7 @@
 !-----------------------------------------------------------------------
 
       call timer_start(12)
-      !change
-      !srch_corners = size(srch_corner_lat,DIM=1)
+      srch_corners = size(srch_corner_lat,DIM=1)
       srch_loop: do
 
         !***
@@ -1105,8 +1071,6 @@
         !***
 
         cell_loop: do cell=1,num_srch_cells
-            !change
-            srch_corners = grid1_corners_set(srch_add(cell))
           corner_loop: do n=1,srch_corners
             next_n = MOD(n,srch_corners) + 1
 

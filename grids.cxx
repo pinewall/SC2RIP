@@ -173,8 +173,8 @@ void grid_init_src(char *grid_src_file)
     grid_lon_range(grid1_corner_lon, grid1_size * grid1_corners_max);
 
     /* allocate bounding box array */
-    grid1_bound_box = new double[grid1_size * 6];
-    for (int i = 0; i < grid1_size * 6; i++)
+    grid1_bound_box = new double[grid1_size * BOUNDBOX_SIZE];
+    for (int i = 0; i < grid1_size * BOUNDBOX_SIZE; i++)
         grid1_bound_box[i] = 0.0;
 }
 
@@ -311,8 +311,8 @@ void grid_init_dst(char *grid_dst_file)
     grid_lon_range(grid2_corner_lon, grid2_size * grid2_corners_max);
 
     /* allocate bounding box array */
-    grid2_bound_box = new double[grid2_size * 6];
-    for (int i = 0; i < grid2_size * 6; i++)
+    grid2_bound_box = new double[grid2_size * BOUNDBOX_SIZE];
+    for (int i = 0; i < grid2_size * BOUNDBOX_SIZE; i++)
         grid2_bound_box[i] = 0.0;
 }
 
