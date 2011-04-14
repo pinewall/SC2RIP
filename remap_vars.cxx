@@ -25,12 +25,16 @@ void init_remap_vars()
     {
         case MAP_TYPE_CONSERV:
           num_wts = 3;
+          break;
         case MAP_TYPE_BILINEAR:
           num_wts = 1;
+          break;
         case MAP_TYPE_BICUBIC:
           num_wts = 4;
+          break;
         case MAP_TYPE_DISTWGT:
           num_wts = 1;
+          break;
     default:
           num_wts = 1;
     }
@@ -78,4 +82,11 @@ void resize_remap_vars(int increment)
     delete [] add2_tmp;
     delete [] wts_tmp;
 
+}
+
+void finalize_remap_vars()
+{
+    delete [] grid1_add_map;
+    delete [] grid2_add_map;
+    delete [] wts_map;
 }

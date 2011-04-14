@@ -1,5 +1,5 @@
-#ifndef _REMAP_CONSERV_
-#define _REMAP_CONSERV_ 1
+#ifndef _REMAP_CONSERV_H_
+#define _REMAP_CONSERV_H_ 1
 
 #include "kinds.h"
 #include "constants.h"
@@ -11,17 +11,15 @@
 #include "line_integral.h"
 #include "store_link_cnsrv.h"
 
-// threshhold precompile constants
-#define NORTH_THRESH (2.00)
-#define SOUTH_THRESH (-2.00)
+#include "namelist.h"
+#include "utils.h"
+#include <memory.h>
+
 #define INTEGRATE_AROUND_SRC_GRID 1
 #define INTEGRATE_AROUND_DST_GRID 2
 
-// extern variables
-extern int num_srch_cells;      // num cells in restricted search arrays
-extern int *srch_add;           // global address of cells in srch arrays
-extern double *srch_corner_lat;    // lat of each corner of srch cells
-extern double *srch_corner_lon;    // lon of each corner of srch cells
+#define SRCH_SIZE 1024
+#define SRCH_CORNER_MAX 8
 
 /** this routine traces the perimeters of every grid cell on each
  *  grid checking for intersections with the other grid and computing

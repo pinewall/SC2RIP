@@ -1041,7 +1041,7 @@ void write_remap_csm(char *map_name, char *interp_file_str, int direction)
   * destination address with the source address as a secondary 
   * sorting criterion. the method is a standard heap sort.
   **/
-void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weights)
+void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int num_weights)
 {
     log("sort add");
     // local variables
@@ -1055,7 +1055,6 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
     /** start at the lowest level (N/2) of the tree and sift lower
       * values to the bottom of the tree, prompting the largest numbers
       **/
-    int wgtdex = num_links/2;       // initial header used for weights[]
     for (lvl = num_links/2; lvl > -1; lvl --)
     {
         final_lvl = lvl;
@@ -1063,9 +1062,8 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
         add2_tmp = add2[lvl];
         for (int i = 0; i < num_weights; i++)
         {
-            wgttmp[i] = weights[wgtdex + i];
+            wgttmp[i] = sortadd_weights[lvl*num_weights + i];
         }
-        wgtdex -= num_weights;      // calculate wgtdex for next
 
         // find the largest of the two daughters
         while (true)
@@ -1093,7 +1091,7 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
                 add2[final_lvl] = add2_tmp;
                 for (int i = 0; i < num_weights; i++)
                 {
-                    weights[final_lvl * num_weights + i] = wgttmp[i];
+                    sortadd_weights[final_lvl * num_weights + i] = wgttmp[i];
                 }
                 break;
             }
@@ -1105,7 +1103,7 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
                 add2[final_lvl] = add2[max_lvl];
                 for (int i = 0; i < num_weights; i++)
                 {
-                    weights[final_lvl * num_weights + i] = weights[max_lvl * num_weights + i];
+                    sortadd_weights[final_lvl * num_weights + i] = sortadd_weights[max_lvl * num_weights + i];
                 }
 
                 final_lvl = max_lvl;
@@ -1115,7 +1113,7 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
                     add2[final_lvl] = add2_tmp;
                     for (int i = 0; i < num_weights; i++)
                     {
-                        weights[final_lvl * num_weights + i] = wgttmp[i];
+                        sortadd_weights[final_lvl * num_weights + i] = wgttmp[i];
                     }
                     break;
                 }
@@ -1137,8 +1135,8 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
             strip_wgtdex = lvl * num_weights;   // header index
             for (int i = 0; i < num_weights; i++)
             {
-                wgttmp[i] = weights[strip_wgtdex + i];
-                weights[strip_wgtdex + i] = weights[i];
+                wgttmp[i] = sortadd_weights[strip_wgtdex + i];
+                sortadd_weights[strip_wgtdex + i] = sortadd_weights[i];
             }
 
             // as above this loop sifts the tmp values down until proper level is reached
@@ -1172,7 +1170,7 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
                     add2[final_lvl] = add2_tmp;
                     for (int i = 0; i < num_weights; i++)
                     {
-                        weights[final_lvl * num_weights + i] = wgttmp[i];
+                        sortadd_weights[final_lvl * num_weights + i] = wgttmp[i];
                     }
                     break;
                 }
@@ -1184,7 +1182,7 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
                     add2[final_lvl] = add2[max_lvl];
                     for (int i = 0; i < num_weights; i++)
                     {
-                        weights[final_lvl * num_weights + i] = weights[max_lvl * num_weights + i];
+                        sortadd_weights[final_lvl * num_weights + i] = sortadd_weights[max_lvl * num_weights + i];
                     }
 
                     final_lvl = max_lvl;
@@ -1194,7 +1192,7 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
                         add2[final_lvl] = add2_tmp;
                         for (int i = 0; i < num_weights; i++)
                         {
-                            weights[final_lvl * num_weights + i] = wgttmp[i];
+                            sortadd_weights[final_lvl * num_weights + i] = wgttmp[i];
                         }
                         break;
                     }   
@@ -1214,8 +1212,8 @@ void sort_add(int *add1, int *add2, double *weights, int num_links, int num_weig
 
     for (int i = 0; i < num_weights; i++)
     {
-        wgttmp[i] = weights[num_weights + i];
-        weights[num_weights + i] = weights[i];
-        weights[i] = wgttmp[i];
+        wgttmp[i] = sortadd_weights[num_weights + i];
+        sortadd_weights[num_weights + i] = sortadd_weights[i];
+        sortadd_weights[i] = wgttmp[i];
     }
 }

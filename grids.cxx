@@ -35,8 +35,10 @@ void grid_init(char *grid1_file, char *grid2_file)
 
     /* assign address ranges to search bins in order to further restrict later searches */
     grid_srch_bin_init();   // init bin_lats|bin_lons
+
     grid_assign_srch_bin(grid1_bound_box, bin_addr1, grid1_size);   // assign srch bin address
     grid_assign_srch_bin(grid2_bound_box, bin_addr2, grid2_size);
+    
 }
 
 // src grid varibles init
@@ -165,17 +167,17 @@ void grid_init_src(char *grid_src_file)
 
     /* make sure input latitude/longitude in given range */
     // latitude -PIH -- PIH
-    grid_lat_range(grid1_center_lat, grid1_size);
-    grid_lat_range(grid1_corner_lat, grid1_size * grid1_corners_max);
+    check_latitude_all(grid1_center_lat, grid1_size);
+    check_latitude_all(grid1_corner_lat, grid1_size * grid1_corners_max);
 
     // longitude ZERO -- PI2
-    grid_lon_range(grid1_center_lon, grid1_size);
-    grid_lon_range(grid1_corner_lon, grid1_size * grid1_corners_max);
+    check_longitude_all(grid1_center_lon, grid1_size, ZERO, PI2);
+    check_longitude_all(grid1_corner_lon, grid1_size * grid1_corners_max
+                                                    , ZERO, PI2);
 
     /* allocate bounding box array */
     grid1_bound_box = new double[grid1_size * BOUNDBOX_SIZE];
-    for (int i = 0; i < grid1_size * BOUNDBOX_SIZE; i++)
-        grid1_bound_box[i] = 0.0;
+    memset(grid1_bound_box, 0, sizeof(double) * grid1_size * BOUNDBOX_SIZE);
 }
 
 // dst grid varibles init
@@ -303,41 +305,19 @@ void grid_init_dst(char *grid_dst_file)
 
     /* make sure input latitude/longitude in given range */
     // latitude -PIH -- PIH
-    grid_lat_range(grid2_center_lat, grid2_size);
-    grid_lat_range(grid2_corner_lat, grid2_size * grid2_corners_max);
+    check_latitude_all(grid2_center_lat, grid2_size);
+    check_latitude_all(grid2_corner_lat, grid2_size * grid2_corners_max);
 
     // longitude ZERO -- PI2
-    grid_lon_range(grid2_center_lon, grid2_size);
-    grid_lon_range(grid2_corner_lon, grid2_size * grid2_corners_max);
+    check_longitude_all(grid2_center_lon, grid2_size, ZERO, PI2);
+    check_longitude_all(grid2_corner_lon, grid2_size * grid2_corners_max
+                                                    , ZERO, PI2);
 
     /* allocate bounding box array */
     grid2_bound_box = new double[grid2_size * BOUNDBOX_SIZE];
-    for (int i = 0; i < grid2_size * BOUNDBOX_SIZE; i++)
-        grid2_bound_box[i] = 0.0;
+    memset(grid2_bound_box, 0, sizeof(double) * grid2_size * BOUNDBOX_SIZE);
 }
 
-// latitude/longitude range control
-void grid_lat_range(double * lat, int len)
-{
-    for (int i = 0; i < len; i++)
-    {
-        if (lat[i] > PIH)
-            lat[i] = PIH;
-        if (lat[i] < -PIH)
-            lat[i] = -PIH;
-    }
-}
-
-void grid_lon_range(double * lon, int len)
-{
-    for (int i = 0; i < len; i++)
-    {
-        if (lon[i] > PI2)
-            lon[i] -= PI2;
-        if (lon[i] < ZERO)
-            lon[i] += PI2;
-    }
-}
 
 // bounding box calculation for grid
 void grid_cal_boundbox(double *boundbox, bool *grid_mask, int grid_size, double *center_lat, double *center_lon, double *corner_lat, double *corner_lon, unsigned int *grid_corners, unsigned int grid_corners_max)
@@ -384,11 +364,11 @@ void grid_cal_boundbox(double *boundbox, bool *grid_mask, int grid_size, double 
             boundbox[bbdex++] = maxval(lat_head, num_corner);
             boundbox[bbdex++] = minval(lon_head, num_corner);
             boundbox[bbdex++] = maxval(lon_head, num_corner);
-            bbdex += 2;
             index += grid_corners_max;
         }
 
         // consider two-value longitude around 0/PI2
+        /*  using le() and ge() to deal two-value problem*/
         bbdex = 0;
         for (int i = 0; i < grid_size; i++)
         {
@@ -397,18 +377,24 @@ void grid_cal_boundbox(double *boundbox, bool *grid_mask, int grid_size, double 
                 boundbox[bbdex+2] = ZERO;
                 boundbox[bbdex+3] = PI2;
             }
-            bbdex += 6;
+            bbdex += BOUNDBOX_SIZE;
         }
-
+        /**/
         // try to check for cells that overlap poles
         bbdex = 0;
         for (int i = 0; i < grid_size; i++)
         {
-            if (center_lat[i] > boundbox[bbdex+1])
+            if ((center_lat[i]) > (boundbox[bbdex+1]))
+            {
+                printf("overlap @ %d: %3.6f > %3.6f\n", i, center_lat[i], boundbox[bbdex+1]);
                 boundbox[bbdex+1] = PIH;
-            if (center_lat[i] < boundbox[bbdex])
+            }
+            else if ((center_lat[i]) < (boundbox[bbdex]))
+            {
+                printf("overlap @ %d: %3.6f < %3.6f\n", i, center_lat[i], boundbox[bbdex]);
                 boundbox[bbdex] = -PIH;
-            bbdex += 6;
+            }
+            bbdex += BOUNDBOX_SIZE;
         }
 #endif
     }
@@ -438,9 +424,9 @@ void grid_srch_bin_init()
             bin_lons[londex++] = ZERO;
             bin_lons[londex++] = PI2;
             bin_addr1[adex1++] = grid1_size;
-            bin_addr1[adex1++] = - ONE;
+            bin_addr1[adex1++] = -1;
             bin_addr2[adex2++] = grid2_size;
-            bin_addr2[adex2++] = - ONE;
+            bin_addr2[adex2++] = -1;
         }
     }
     else if (strcmp(restrict_type, "latlon") == 0)
@@ -466,9 +452,9 @@ void grid_srch_bin_init()
                 bin_lons[londex++] = i * dlon;
                 bin_lons[londex++] = (i+1) * dlon;
                 bin_addr1[adex1++] = grid1_size;
-                bin_addr1[adex1++] = - ONE;
+                bin_addr1[adex1++] = -1;
                 bin_addr2[adex2++] = grid2_size;
-                bin_addr2[adex2++] = - ONE;
+                bin_addr2[adex2++] = -1;
             }
         }
     }
@@ -492,18 +478,108 @@ void grid_assign_srch_bin(double *boundbox, int *addr, int grid_size)
         cout << "Unknown search restriction method" << endl;
         exit(1);
     }
-    int bbdex = 0;
-    for (int cell = 0; cell < grid_size; cell++)
+    if (streqls(restrict_type, "latitude"))
     {
-        for (int n = 0; n < num_srch_bins_all; n++)
+        int bbdex = 0;
+        for (int cell = 0; cell < grid_size; cell ++)
         {
-            if (boundbox[bbdex] <= bin_lats[n*2] && boundbox[bbdex+1] >= bin_lats[n*2+1])
-                if (boundbox[bbdex+2] <= bin_lons[n*2] && boundbox[bbdex+3] >= bin_lons[n*2+1])
+            for (int n = 0; n < num_srch_bins_all; n++)
+            {
+                if (boundbox[bbdex+1] >= bin_lats[n*2] &&
+                    boundbox[bbdex] <= bin_lats[n*2+1])
                 {
-                    addr[n*2] = min(cell, addr[n*2]);
-                    addr[n*2+1] = max(cell, addr[n*2+1]);
+                    addr[n*2] = MIN(cell, addr[n*2]);
+                    addr[n*2+1] = MAX(cell, addr[n*2+1]);
                 }
+            }
+            bbdex += BOUNDBOX_SIZE;
         }
-        bbdex += 6;
+    }
+    else if (streqls(restrict_type, "latlon"))
+    {
+        int bbdex = 0;
+        for (int cell = 0; cell < grid_size; cell++)
+        {
+            for (int n = 0; n < num_srch_bins_all; n++)
+            {
+                if (boundbox[bbdex+1] >= bin_lats[n*2] && boundbox[bbdex] <= bin_lats[n*2+1])
+                    if (le(boundbox[bbdex+2], bin_lons[n*2+1]) && 
+                        ge(boundbox[bbdex+3], bin_lons[n*2]))
+                    {
+                        addr[n*2] = MIN(cell, addr[n*2]);
+                        addr[n*2+1] = MAX(cell, addr[n*2+1]);
+                    }
+            }
+            bbdex += BOUNDBOX_SIZE;
+        }
+    }
+}
+
+// debug grid utils
+void grid_debug()
+{
+    int index = 0;
+    printf("grid1_size: %d\n", grid1_size);
+    cout << "grid1_rank = " << grid1_rank << endl;
+    cout << "grid1_corners_max = " << grid1_corners_max << endl;
+    printf("grid1_center_lat\tgrid1_corner_lat\t\tgrid1_center_lon\tgrid1_corner_lon\t\tgrid1_bound_box\n");
+    index = 0;
+    for (int i = 0; i < grid1_size; i++)
+    {
+        printf("%3.2f\t|\t", grid1_center_lat[i]);
+        for (int j = 0; j < grid1_corners_max; j++)
+        {
+            printf("%3.2f\t", grid1_corner_lat[index + j]);
+        }
+        printf("|");
+        printf("%3.2f\t|\t", grid1_center_lon[i]);
+        for (int j = 0; j < grid1_corners_max; j++)
+        {
+            printf("%3.2f\t", grid1_corner_lon[index + j]);            
+        }
+        printf("|");
+        int bbdex = i * BOUNDBOX_SIZE;
+        for (int j = 0; j < BOUNDBOX_SIZE; j++)
+            printf("%3.2f\t", grid1_bound_box[bbdex++]);
+        printf("\n");
+        index += grid1_corners_max;
+    }
+    printf("grid2_size: %d\n", grid2_size);
+    cout << "grid2_rank = " << grid2_rank << endl;
+    cout << "grid2_corners_max = " << grid2_corners_max << endl;
+    printf("grid2_center_lat\tgrid2_corner_lat\t\tgrid2_center_lon\tgrid2_corner_lon\t\tgrid2_bound_box\n");
+    index = 0;
+    for (int i = 0; i < grid2_size; i++)
+    {
+        printf("%3.2f\t|\t", grid2_center_lat[i]);
+        for (int j = 0; j < grid2_corners_max; j++)
+        {
+            printf("%3.2f  ", grid2_corner_lat[index + j]);
+        }
+        printf("|");
+        printf("%3.2f\t|\t", grid2_center_lon[i]);
+        for (int j = 0; j < grid2_corners_max; j++)
+        {
+            printf("%3.2f  ", grid2_corner_lon[index + j]);            
+        }
+        printf("|");
+        int bbdex = i * BOUNDBOX_SIZE;
+        for (int j = 0; j < BOUNDBOX_SIZE; j++)
+            printf("%3.2f\t", grid2_bound_box[bbdex++]);
+        printf("\n");
+        index += grid2_corners_max;
+    }
+
+    printf("grid1_srch_bins\n");
+    for (int i = 0; i < num_srch_bins; i++)
+    {
+        int sbdex = i * 2;
+        printf("%d\t%d\n", bin_addr1[sbdex++], bin_addr1[sbdex++]);
+    }
+    printf("grid2_srch_bins\n");
+    for (int i = 0; i < num_srch_bins; i++)
+    {
+        int sbdex = i * 2;
+        printf("%d\t%d\n", bin_addr2[sbdex++], bin_addr2[sbdex++]);
     }
 }

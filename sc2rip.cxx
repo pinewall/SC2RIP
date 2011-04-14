@@ -10,11 +10,12 @@
 #include "remap_write.h"
 #include "remap_algorithms.h"
 
+#include "debug.h"
+
 #include <unistd.h>
 #include <stdio.h>
 #include <iostream>
 
-#define _DEBUG_ 1
 using namespace std;
 int main()
 {
@@ -54,6 +55,7 @@ int main()
         cerr << "Unknown mapping method" << endl;
         return 1;
     }
+    printf("map_type: %d\n", map_type);
 
     // normalize option settings; norm_opt declared in remap_vars.h
     if (streqls(normalize_opt, "none"))
@@ -67,11 +69,16 @@ int main()
         cerr << "Unknown normalization option" << endl;
         return 1;
     }
+    printf("norm_opt: %d\n", norm_opt);
     
     // initialize grid information for both grids
     grid_init(grid1_file, grid2_file);
     cout << "Computing remappings between <<" << grid1_name << ">> and <<" << grid2_name << ">>" << endl;
     
+#if _DEBUG_GRID_
+    // test grid util
+    grid_debug();
+#endif
     // initialize some remapping variables
     init_remap_vars();
 
@@ -79,6 +86,7 @@ int main()
     switch(map_type)
     {
         case MAP_TYPE_CONSERV:
+            cout << "Coming here!" << endl;
             remap_conserv();
             break;
         case MAP_TYPE_BILINEAR:
@@ -95,116 +103,21 @@ int main()
             return 1;
 
     }
-
+#if _DEBUG_AREA_FRAC_
+    printf("num_links_map: %d\n", num_links_map);
+    printf("grid1 area\tgrid1 frac\n");
+    for (int i = 0; i < grid1_size; i++)
+        printf("%3.6f\t%3.6f\n", grid1_area[i], grid1_frac[i]);
+    printf("grid2 area\tgrid2 frac\n");
+    for (int i = 0; i < grid2_size; i++)
+        printf("%3.6f\t%3.6f\n", grid2_area[i], grid2_frac[i]);
+#endif
     // reduce size of remapping arrays and then write reammping info to a file
     if (num_links_map != max_links_map)
         resize_remap_vars(num_links_map - max_links_map);
     write_remap(map_name, interp_file, output_opt);
+    finalize_remap_vars();
+    //finalize_intersection();
 
-#if _DEBUG_
-    // test grid util
-    cout << "grid1_size = " << grid1_size << endl;
-    cout << "grid1_rank = " << grid1_rank << endl;
-    cout << "grid1_mask[0] = " << grid1_mask[0] << endl;
-    //cout << "grid1_center_lat[0] = " << grid1_center_lat[0] << endl;
-    //cout << "grid1_center_lon[0] = " << grid1_center_lon[0] << endl;
-    cout << "grid1_corners_max = " << grid1_corners_max << endl;
-    cout << "GRID1 corner lats" << endl;
-    int index = 0;
-    for (int i = 0; i < grid1_size; i++)
-    {
-        for (int j = 0; j < grid1_corners_max; j++)
-        {
-            //cout << grid1_center_lat[index + j] << "\t";
-            printf("%1.5f  ", grid1_corner_lat[index + j]);
-        }
-        //cout << endl;
-        printf("\n");
-        index += grid1_corners_max;
-    }
-    cout << "GRID1 corner lons" << endl;
-    index = 0;
-    for (int i = 0; i < grid1_size; i++)
-    {
-        for (int j = 0; j < grid1_corners_max; j++)
-        {
-            //cout << grid1_corner_lat[index + j] << "\t";
-            printf("%1.5f  ", grid1_corner_lon[index + j]);
-        }
-        //cout << endl;
-        printf("\n");
-        index += grid1_corners_max;
-    }
-
-    // test bounding box
-    cout << "GRID1 bounding box" << endl;
-    index = 0;
-    for (int i = 0; i < grid1_size; i++)
-    {
-        //cout << grid1_bound_box[index++] << "\t";
-        //cout << grid1_bound_box[index++] << "\t";
-        //cout << grid1_bound_box[index++] << "\t";
-        //cout << grid1_bound_box[index++] << "\t";
-        //cout << grid1_bound_box[index++] << "\t";
-        //cout << grid1_bound_box[index++] << endl;
-        printf("%1.5f  ", grid1_bound_box[index++]);
-        printf("%1.5f  ", grid1_bound_box[index++]);
-        printf("%1.5f  ", grid1_bound_box[index++]);
-        printf("%1.5f  ", grid1_bound_box[index++]);
-        printf("%1.5f  ", grid1_bound_box[index++]);
-        printf("%1.5f\n", grid1_bound_box[index++]);
-    }
-    cout << "grid2_size = " << grid2_size << endl;
-    cout << "grid2_rank = " << grid2_rank << endl;
-    cout << "grid2_mask[0] = " << grid2_mask[0] << endl;
-    //cout << "grid2_center_lat[0] = " << grid2_center_lat[0] << endl;
-    //cout << "grid2_center_lon[0] = " << grid2_center_lon[0] << endl;
-    cout << "grid2_corners_max = " << grid2_corners_max << endl;
-    cout << "GRID2 corner lats" << endl;
-    index = 0;
-    for (int i = 0; i < grid2_size; i++)
-    {
-        for (int j = 0; j < grid2_corners_max; j++)
-        {
-            //cout << grid2_center_lat[index + j] << "\t";
-            printf("%1.5f  ", grid2_corner_lat[index + j]);
-        }
-        //cout << endl;
-        printf("\n");
-        index += grid2_corners_max;
-    }
-    cout << "GRID2 corner lons" << endl;
-    index = 0;
-    for (int i = 0; i < grid2_size; i++)
-    {
-        for (int j = 0; j < grid2_corners_max; j++)
-        {
-            //cout << grid2_corner_lat[index + j] << "\t";
-            printf("%1.5f  ", grid2_corner_lon[index + j]);
-        }
-        //cout << endl;
-        printf("\n");
-        index += grid2_corners_max;
-    }
-
-    // test bounding box
-    cout << "GRID2 bounding box" << endl;
-    index = 0;
-    for (int i = 0; i < grid2_size; i++)
-    {
-        //cout << grid2_bound_box[index++] << "\t";
-        //cout << grid2_bound_box[index++] << "\t";
-        //cout << grid2_bound_box[index++] << "\t";
-        //cout << grid2_bound_box[index++] << "\t";
-        //cout << grid2_bound_box[index++] << "\t";
-        //cout << grid2_bound_box[index++] << endl;
-        printf("%1.5f  ", grid2_bound_box[index++]);
-        printf("%1.5f  ", grid2_bound_box[index++]);
-        printf("%1.5f  ", grid2_bound_box[index++]);
-        printf("%1.5f  ", grid2_bound_box[index++]);
-        printf("%1.5f  ", grid2_bound_box[index++]);
-        printf("%1.5f\n", grid2_bound_box[index++]);
-    }
-#endif
     return 0;
 }

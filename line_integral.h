@@ -1,5 +1,5 @@
-#ifndef _LINE_INTEGRAL_
-#define _LINE_INTEGRAL_ 1
+#ifndef _LINE_INTEGRAL_H_
+#define _LINE_INTEGRAL_H_ 1
 
 /** this routine computes the line integral of the flux function
   * that results in the interpolation weights. the line is defined

@@ -1,5 +1,5 @@
-#ifndef _NETCDF_ERROR_
-#define _NETCDF_ERROR_ 1
+#ifndef _NETCDF_ERROR_H_
+#define _NETCDF_ERROR_H_ 1
 
 #include "kinds.h"
 #include "constants.h"

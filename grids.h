@@ -1,5 +1,5 @@
-#ifndef _GRIDS_
-#define _GRIDS_ 1
+#ifndef _GRIDS_H_
+#define _GRIDS_H_ 1
 
 #include <string.h>
 #include <netcdf.h>
@@ -52,14 +52,12 @@ extern void grid_init(char *grid1_file, char* grid2_file);
 extern void grid_init_src(char *grid_src_file);
 // grid init for destination grid
 extern void grid_init_dst(char *grid_dst_file);
-// make sure latitude range -PIH -- PIH
-void grid_lat_range(double * lat, int len);
-// make sure longitude range ZERO -- PI2
-void grid_lon_range(double * lon, int len);
 // calculate bounding box for each grid
 void grid_cal_boundbox(double *boundbox, bool *grid_mask, int grid_size, double *center_lat, double *center_lon, double *corner_lat, double *corner_lon, unsigned int *grid_corners, unsigned int grid_corners_max);
 // init search bins
 void grid_srch_bin_init();
 // assign search bin address, that is min|max index of cell
 void grid_assign_srch_bin(double *boundbox, int *addr, int grid_size);
+// grid debug
+void grid_debug();
 #endif

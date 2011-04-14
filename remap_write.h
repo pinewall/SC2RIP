@@ -1,5 +1,5 @@
-#ifndef _REAMP_WRITE_
-#define _REMAP_WRITE_ 1
+#ifndef _REAMP_WRITE_H_
+#define _REMAP_WRITE_H_ 1
 
 // call correct output routine based on output format choice (scrip or csm)
 void write_remap(char *map_name, char *interp_file, int output_opt);

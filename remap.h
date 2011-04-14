@@ -1,5 +1,5 @@
-#ifndef _REMAP_
-#define _REMAP_ 1
+#ifndef _REMAP_H_
+#define _REMAP_H_ 1
 
 #include "kinds.h"
 #include "constants.h"

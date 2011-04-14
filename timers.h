@@ -1,5 +1,5 @@
-#ifndef _TIMERS_
-#define _TIMERS_ 1
+#ifndef _TIMERS_H
+#define _TIMERS_H 1
 class Timers
 {
     private:

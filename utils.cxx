@@ -24,6 +24,99 @@ double minval(const double *head, const int len)
     return min;
 }
 
+// make sure longitude lies in bottom-top
+void check_longitude(double &longitude, double bottom, double top)
+{
+    if (longitude > top)
+        longitude -= PI2;
+    else if (longitude < bottom)
+        longitude += PI2;
+}
+
+// make sure longitude lies in 0-PI2
+void check_longitude(double &longitude)
+{
+    check_longitude(longitude, -PI, PI);
+}
+
+// make sure all longitudes lies in bottom-top
+void check_longitude_all(double *lon, int size, double bottom, double top)
+{
+    for (int i = 0; i < size; i++)
+        check_longitude(lon[i], bottom, top);
+}
+// make sure all longitudes lies in 0-PI2
+void check_longitude_all(double *lon, int size)
+{
+    check_longitude_all(lon, size, ZERO, PI2);
+}
+
+// make sure latitude lies in -PIH-PIH
+void check_latitude(double &latitude)
+{
+    if (latitude > PIH + 0.01)
+        latitude -= PI;
+    else if (latitude < - PIH - 0.01)
+        latitude += PI;
+}
+
+// make sure latitudes lie in -PIH-PIH
+void check_latitude_all(double *lat, int size)
+{
+    for (int i = 0; i < size; i++)
+        check_latitude(lat[i]);
+}
+
+// compare two longitudes based on West-->East Increase Direction
+bool le(double lon1, double lon2)
+{
+    return lessequal(lon1, lon2);
+}
+
+bool ge(double lon1, double lon2)
+{
+    return greaterequal(lon1, lon2);
+}
+
+bool lessequal(double lon1, double lon2)
+{
+    double delta = lon2 - lon1;
+    if (zero(delta))
+        return true;
+    while (delta > PI2 || delta < ZERO)
+    {
+        if (delta > PI2)
+            delta -= PI2;
+        if (delta < ZERO)
+            delta += PI2;
+    }
+    // now delta lies in (0--PI2)
+    if (delta < PIH)
+        return true;
+    else
+        return false;
+}
+
+bool greaterequal(double lon1, double lon2)
+{
+    double delta = lon2 - lon1;
+    if (zero(delta))
+        return true;
+    while (delta > PI2 || delta < ZERO)
+    {
+        if (delta > PI2)
+            delta -= PI2;
+        if (delta < ZERO)
+            delta += PI2;
+    }
+    // now delta lies in (0--PI2)
+    if (delta < PIH)
+        return false;
+    else
+        return true;
+}
+/* String Functions */
+
 // string equals
 bool streqls(const char *dst, const char *src)
 {

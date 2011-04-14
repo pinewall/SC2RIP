@@ -1,5 +1,5 @@
-#ifndef _NAMELIST_
-#define _NAMELIST_ 1
+#ifndef _NAMELIST_H_
+#define _NAMELIST_H_ 1
 
 #define SCRIP_CONVENTION 1
 #define CSM_CONVENTION 2

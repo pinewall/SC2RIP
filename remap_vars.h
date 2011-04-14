@@ -1,5 +1,5 @@
-#ifndef _REMAP_VARS_
-#define _REMAP_VARS_ 1
+#ifndef _REMAP_VARS_H_
+#define _REMAP_VARS_H_ 1
 
 #include "kinds.h"
 #include "constants.h"
@@ -33,5 +33,6 @@ extern double *wts_map;         // map weights for each link (wts, links)
 
 void init_remap_vars();         // init remapping variables
 void resize_remap_vars(int increment);      // resize remapping variable scale
+void finalize_remap_vars();     // finalize remapping variables
 
 #endif

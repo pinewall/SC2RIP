@@ -1,5 +1,5 @@
-#ifndef REMAP_ALGORITHMS
-#define REMAP_ALGORITHMS 1
+#ifndef REMAP_ALGORITHMS_H_
+#define REMAP_ALGORITHMS_H_ 1
 
 #include "remap_conserv.h"
 
