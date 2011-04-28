@@ -88,7 +88,6 @@ void intersection(int &location,
         lon2 -= PI2;
     else if ((lon2 - lon1) < - THREE * PIH)
         lon2 += PI2;
-        //lon1 -= PI2;    // using le method only this can happen e.g. lon1 = 6.25 vs lon2 = 0.25
 
 
     s1 = ZERO;                  // parameter controling endpoints shift
@@ -179,9 +178,9 @@ void intersection(int &location,
         rhs1 = grdlat1 - lat1;
         rhs2 = grdlon1 - lon1;
 
-        check_longitude(mat3);
-        check_longitude(mat4);
-        check_longitude(rhs2);
+        check_longitude(mat3, -PI, PI);
+        check_longitude(mat4, -PI, PI);
+        check_longitude(rhs2, -PI, PI);
 
         determ = mat1*mat4 - mat2*mat3;
 
@@ -195,7 +194,7 @@ void intersection(int &location,
           *     return the point of intersection (adding a small 
           *     number so the intersection is off the grid (line)
           */
-        if (nonzero(determ))
+        if (determ > 1e-30)
         {
             s1 = (rhs1*mat4 - mat2*rhs2) / determ;
             s2 = (mat1*rhs2 - rhs1*mat3) / determ;
@@ -262,7 +261,7 @@ void intersection(int &location,
      */
     if (lthresh)
     {
-        if (intrsct_lat < NORTH_THRESH && intrsct_lon > SOUTH_THRESH)
+        if (intrsct_lat < NORTH_THRESH && intrsct_lat > SOUTH_THRESH)
         {
             lthresh = false;
         }
@@ -309,6 +308,7 @@ bool is_point_in(double *corner_lat, double *corner_lon,
 {
     double vec1_lat, vec1_lon;      // first vector
     double vec2_lat, vec2_lon;      // second vector
+    double lat1, lon1;              // tmp
     int n, next_n;                  // corner index
     double cp;                      // cross product value
     for (n = 0; n < corner_num; n++)
@@ -322,6 +322,7 @@ bool is_point_in(double *corner_lat, double *corner_lon,
         // if endpoint coincident with vertex, offset the endpoint
         if (zero(vec2_lat) && zero(vec2_lon))
         {
+
             vec2_lat = objlat + 1e-10 * (assistlat - objlat) 
                 - corner_lat[n];
             vec2_lon = objlon + 1e-10 * (assistlon - objlon)

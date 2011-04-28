@@ -45,15 +45,17 @@ void init_remap_vars()
      *  arrays if the number of links exceeds the inital size
      **/
     num_links_map = 0;
-    int grid_size_max = MAX(grid1_size, grid2_size);
-    max_links_map = 4 * grid_size_max;
-    resize_increment = 0.1 * grid_size_max;
+    max_links_map = 8 * grid2_size;
+    //max_links_map = 4 * grid2_size;
+    resize_increment = 0.1 * MAX(grid1_size, grid2_size);
 
     // allocate address and weight arrays for mapping
     grid1_add_map = new int [max_links_map];
     grid2_add_map = new int [max_links_map];
     wts_map = new double [max_links_map * num_wts];
-
+    memset(grid1_add_map, -1, sizeof(int) * max_links_map);
+    memset(grid2_add_map, -1, sizeof(int) * max_links_map);
+    memset(wts_map, 0.0, sizeof(double) * max_links_map * num_wts);
 }
 
 // resize remapping arrays by increasing(decreasing) the max_links by increment
@@ -75,7 +77,7 @@ void resize_remap_vars(int increment)
     mxlinks = MIN(mxlinks, max_links_map);      // amout to move
     memcpy(grid1_add_map, add1_tmp, mxlinks * sizeof(int));
     memcpy(grid2_add_map, add2_tmp, mxlinks * sizeof(int));
-    memcpy(wts_map, wts_tmp, mxlinks * sizeof(double));
+    memcpy(wts_map, wts_tmp, mxlinks * sizeof(double) * num_wts);
 
     // delete original values
     delete [] add1_tmp;

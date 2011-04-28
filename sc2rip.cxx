@@ -104,19 +104,28 @@ int main()
 
     }
 #if _DEBUG_AREA_FRAC_
-    printf("num_links_map: %d\n", num_links_map);
+    //printf("num_links_map: %d\n", num_links_map);
     printf("grid1 area\tgrid1 frac\n");
     for (int i = 0; i < grid1_size; i++)
-        printf("%3.6f\t%3.6f\n", grid1_area[i], grid1_frac[i]);
+        printf("%6d\t%3.6f\t%3.6f\n", i, grid1_area[i], grid1_frac[i]);
     printf("grid2 area\tgrid2 frac\n");
     for (int i = 0; i < grid2_size; i++)
-        printf("%3.6f\t%3.6f\n", grid2_area[i], grid2_frac[i]);
+        printf("%6d\t%3.6f\t%3.6f\n", i, grid2_area[i], grid2_frac[i]);
 #endif
+
+#if _DEBUG_FINAL_WEIGHTS_
+    printf("remapping weights\n");
+    for (int i = 0; i < num_links_map; i++)
+    {
+        printf("%6d\t%6d\t%2.6f\t%2.6f\t%2.6f\n", grid1_add_map[i], grid2_add_map[i], wts_map[i*num_wts], wts_map[i*num_wts+1], wts_map[i*num_wts+2]);
+    }
+#endif
+
     // reduce size of remapping arrays and then write reammping info to a file
     if (num_links_map != max_links_map)
         resize_remap_vars(num_links_map - max_links_map);
-    write_remap(map_name, interp_file, output_opt);
-    finalize_remap_vars();
+    //write_remap(map_name, interp_file, output_opt);
+    //finalize_remap_vars();
     //finalize_intersection();
 
     return 0;

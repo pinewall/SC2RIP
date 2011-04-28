@@ -13,6 +13,7 @@ void store_link_cnsrv(int add1, int add2, double *weights, int num_weights)
 {
     // local variables
     int nlink, min_link, max_link;      // index for link
+    int map_id;
 
     bool allzero = true;
     for (int i = 0; i < num_weights; i++)
@@ -29,8 +30,8 @@ void store_link_cnsrv(int add1, int add2, double *weights, int num_weights)
     {
         src_link_add = new int [grid1_size * 2];
         dst_link_add = new int [grid2_size * 2];
-        memset(src_link_add, -1, sizeof(int) * grid1_size);
-        memset(dst_link_add, -1, sizeof(int) * grid2_size);
+        memset(src_link_add, -1, sizeof(int) * grid1_size * 2);
+        memset(dst_link_add, -1, sizeof(int) * grid2_size * 2);
         first_call_store = false;
         min_link = 1;       // initial values
         max_link = 0;
@@ -48,34 +49,36 @@ void store_link_cnsrv(int add1, int add2, double *weights, int num_weights)
 
     // if the link already exists, add the weight to the current weight arrays
     for (nlink = min_link; nlink <= max_link; nlink ++)
+    //for (nlink = 0; nlink < num_links_map; nlink ++)
     {
         if (add1 == grid1_add_map[nlink] &&
             add2 == grid2_add_map[nlink])
         {
-            int lindex = nlink * num_wts;
-            wts_map[lindex++] += weights[0];
-            wts_map[lindex++] += weights[1];
-            wts_map[lindex++] += weights[2];
+            for (int i = 0; i < num_wts; i++)
+            {
+                wts_map[nlink * num_wts + i] += weights[i];
+            }
+            return;
         }
     }
 
     // if the link does not yet exist, increment number of links and check to see if remap arrays need to be increased to accomodate the new link. then store the link
+    map_id = num_links_map;
     num_links_map ++;
     if (num_links_map > max_links_map)
         resize_remap_vars(resize_increment);
-    grid1_add_map[num_links_map - 1] = add1;
-    grid2_add_map[num_links_map - 1] = add2;
+    grid1_add_map[map_id] = add1;
+    grid2_add_map[map_id] = add2;
     
-    int wedex = (num_links_map - 1) * num_wts;
     for (int i = 0; i < num_wts; i++)
     {
-        wts_map[wedex++] += weights[i];
+        wts_map[map_id*num_wts + i] = weights[i];
     }
 
     if (src_link_add[add1 * 2] == -1)
-        src_link_add[add1 * 2] = num_links_map - 1;
+        src_link_add[add1 * 2] = map_id;
     if (dst_link_add[add2 * 2] == -1)
-        dst_link_add[add2 * 2] = num_links_map - 1;
-    src_link_add[add1 * 2 + 1] = num_links_map - 1;
-    dst_link_add[add2 * 2 + 1] = num_links_map - 1;
+        dst_link_add[add2 * 2] = map_id;
+    src_link_add[add1 * 2 + 1] = map_id;
+    dst_link_add[add2 * 2 + 1] = map_id;
 }

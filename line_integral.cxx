@@ -23,7 +23,7 @@ void line_integral(double *weights, int num_weights,
     costh2 = cos(theta2);
 
     dphi = in_phi1 - in_phi2;
-    check_longitude(dphi);
+    check_longitude(dphi, - PI, PI);
     dphi = dphi * HALF;
 
     // the first weight is the area overlap integral. the second and fourth are second-order latitude gradient weights.
@@ -37,10 +37,10 @@ void line_integral(double *weights, int num_weights,
     f2 = HALF * (costh2*sinth2 + theta2);
 
     phi1 = in_phi1 - grid1_lon;
-    check_longitude(phi1);
+    check_longitude(phi1, - PI, PI);
 
     phi2 = in_phi2 - grid1_lon;
-    check_longitude(phi2);
+    check_longitude(phi2, - PI, PI);
 
     if ((phi2-phi1) < PI && (phi2-phi1) > - PI)     // normal case
     {
@@ -52,17 +52,20 @@ void line_integral(double *weights, int num_weights,
             fac = PI;
         else
             fac = - PI;
-        fint = f1 + (f2-f1) * (fac-phi1) / ABS(dphi);
+        //fint = f1 + (f2-f1) * (fac-phi1) / ABS(dphi);
+        fint = f1 + (f2-f1) * (fac-phi1) / dphi;
+        if (dphi < 0)
+            fint = -fint;
         weights[2] = HALF * phi1 * (phi1-fac) * f1 -
                      HALF * phi2 * (phi2+fac) * f2 +
                      HALF * fac * (phi1+phi2) * fint;
     }
 
     phi1 = in_phi1 - grid2_lon;
-    check_longitude(phi1);
+    check_longitude(phi1, - PI, PI);
 
     phi2 = in_phi2 - grid2_lon;
-    check_longitude(phi2);
+    check_longitude(phi2, - PI, PI);
 
     if ((phi2-phi1) < PI && (phi2-phi1) > - PI)     // normal case
     {
@@ -74,9 +77,12 @@ void line_integral(double *weights, int num_weights,
             fac = PI;
         else
             fac = - PI;
-        fint = f1 + (f2-f1) * (fac-phi1) / ABS(dphi);
+        //fint = f1 + (f2-f1) * (fac-phi1) / ABS(dphi);
+        fint = f1 + (f2-f1) * (fac-phi1) / dphi;
+        if (dphi < 0)
+            fint = - fint;
         weights[num_weights+2] = HALF * phi1 * (phi1-fac) * f1 -
-                     HALF * phi2 * (phi2+fac) * f2 +
-                     HALF * fac * (phi1+phi2) * fint;
+                                 HALF * phi2 * (phi2+fac) * f2 +
+                                 HALF * fac * (phi1+phi2) * fint;
     }
 }

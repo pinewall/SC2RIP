@@ -57,8 +57,100 @@ void remap_conserv()
         return;
     }
     
+#if _DEBUG_INITIAL_WEIGHTS_ 
+    // check weights
+    for (int n = 0; n < num_links_map; n++)
+    {
+        grid1_add = grid1_add_map[n];
+        grid2_add = grid2_add_map[n];
+        printf("%6d %6d  %3.8f %3.8f %3.8f\n", grid1_add+1, grid2_add+1, wts_map[num_wts * n], wts_map[num_wts * n + 1], wts_map[num_wts * n + 2]);
+    }
+#endif
     /* correct for situations where N/S pole not explicitly included in grid (i.e. as a grid corner point). if pole is missing from only one grid, need to correct only the area and centroid of that grid. if missing from both, do complete weight calculation */
-    
+    int grid1_pole = -1, grid2_pole = -1;
+    double conserv_weights[3];
+    conserv_weights[0] = PI2;
+    conserv_weights[1] = PI * PI;
+    conserv_weights[2] = ZERO;
+
+    // for north pole
+    for (int i = 0; i < grid1_size; i++)
+    {
+        if (grid1_area[i] < - THREE * PIH &&
+            grid1_centroid_lat[i] > ZERO)
+        {
+            grid1_pole = i;
+            break;
+        }
+    }
+    for (int i = 0; i < grid2_size; i++)
+    {
+        if (grid2_area[i] < -THREE * PIH &&
+            grid2_centroid_lat[i] > ZERO)
+        {
+            grid2_pole = i;
+            break;
+        }
+    }
+    if (grid1_pole != -1)
+    {
+        grid1_area[grid1_pole] += conserv_weights[0];
+        grid1_centroid_lat[grid1_pole] += conserv_weights[1];
+        grid1_centroid_lon[grid1_pole] += ZERO;
+    }
+    if (grid2_pole != -1)
+    {
+        grid2_area[grid2_pole] += conserv_weights[0];
+        grid2_centroid_lat[grid2_pole] += conserv_weights[1];
+        grid2_centroid_lon[grid2_pole] += ZERO;
+    }
+    if (grid1_pole != -1 && grid2_pole != -1)
+    {
+        store_link_cnsrv(grid1_pole, grid2_pole, conserv_weights, num_wts);
+        grid1_frac[grid1_pole] += conserv_weights[0];
+        grid2_frac[grid2_pole] += conserv_weights[0];
+    }
+
+    // for south pole
+    grid1_pole = -1;
+    grid2_pole = -1;
+    conserv_weights[1] = -conserv_weights[1];
+    for (int i = 0; i < grid1_size; i++)
+    {
+        if (grid1_area[i] < - THREE * PIH &&
+            grid1_centroid_lat[i] < ZERO)
+        {
+            grid1_pole = i;
+            break;
+        }
+    }
+    for (int i = 0; i < grid2_size; i++)
+    {
+        if (grid2_area[i] < -THREE * PIH &&
+            grid2_centroid_lat[i] < ZERO)
+        {
+            grid2_pole = i;
+            break;
+        }
+    }
+    if (grid1_pole != -1)
+    {
+        grid1_area[grid1_pole] += conserv_weights[0];
+        grid1_centroid_lat[grid1_pole] += conserv_weights[1];
+        grid1_centroid_lon[grid1_pole] += conserv_weights[2];
+    }
+    if (grid2_pole != -1)
+    {
+        grid2_area[grid2_pole] += conserv_weights[0];
+        grid2_centroid_lat[grid2_pole] += conserv_weights[1];
+        grid2_centroid_lon[grid2_pole] += conserv_weights[2];
+    }
+    if (grid1_pole != -1 && grid2_pole != -1)
+    {
+        store_link_cnsrv(grid1_pole, grid2_pole, conserv_weights, num_wts);
+        grid1_frac[grid1_pole] += conserv_weights[0];
+        grid2_frac[grid2_pole] += conserv_weights[0];
+    }
     /* finish centroid computation */
     for (int n = 0; n < grid1_size; n++)
     {
@@ -102,7 +194,7 @@ void remap_conserv()
                     norm_factor = ZERO;
                 break;
             case NORM_OPT_FRACAREA:
-                if (nonzero(grid2_area[grid2_add]))
+                if (nonzero(grid2_frac[grid2_add]))
                 {
                     if (luse_grid2_area)
                         norm_factor = grid2_area[grid2_add] /
@@ -133,10 +225,10 @@ void remap_conserv()
     for (int n = 0; n < grid2_size; n++)
         if (nonzero(grid2_area[n]))
             grid2_frac[n] /= grid2_area[n];
-    
 
-    /* perform some error checking on final weights */
+
 #if _CHECK_AREA_CENTROID_
+    /* perform some error checking on final weights */
     // check grid1 area and centroid lat
     for (int n = 0; n < grid1_size; n++)
     {
@@ -160,16 +252,16 @@ void remap_conserv()
         grid2_centroid_lon[n] = ZERO;
     }
     // check weights
-    grid2_add = 0;
     for (int n = 0; n < num_links_map; n++)
     {
         grid1_add = grid1_add_map[n];
         grid2_add = grid2_add_map[n];
 
         if (wts_map[num_wts * n] < -0.01)
-            printf("Map Weight < 0 @grid1_add=%d\tgrid2_add=%d\t valued %3.6f\n", grid1_add, grid2_add, wts_map[num_wts*2 * n]);
+            printf("Map Weight < 0 @grid1_add=%d\tgrid2_add=%d\t valued %3.6f\n", grid1_add, grid2_add, wts_map[num_wts * n]);
         if (norm_opt != NORM_OPT_NONE && wts_map[num_wts * n] > 1.01)
-            printf("Map weight > 1 @grid1_add=%d\tgrid2_add=%d\t valued %3.6f\n", grid1_add, grid2_add, wts_map[num_wts*2 * n]);
+            printf("Map weight > 1 @grid1_add=%d\tgrid2_add=%d\t valued %3.6f\n", grid1_add, grid2_add, wts_map[num_wts * n]);
+
         grid2_centroid_lat [grid2_add] += wts_map[num_wts * n];
     }
 
@@ -178,20 +270,20 @@ void remap_conserv()
         switch (norm_opt)
         {
             case NORM_OPT_DESTAREA:
-                norm_factor = grid2_frac[grid2_add];
+                norm_factor = grid2_frac[n];
                 break;
             case NORM_OPT_FRACAREA:
                 norm_factor = ONE;
             case NORM_OPT_NONE:
                 if (luse_grid2_area)
-                    norm_factor = grid2_area_in [grid2_add];
+                    norm_factor = grid2_area_in [n];
                 else
-                    norm_factor = grid2_area [grid2_add];
+                    norm_factor = grid2_area [n];
                 break;
             default:
                 break;
         }
-        if (abs(grid2_centroid_lat[grid2_add] - norm_factor ) > 0.01)
+        if (abs(grid2_centroid_lat[n] - norm_factor ) > 0.01)
             printf("Error: sum of wts for map @%d\t %3.6f\t vs %3.6f\n", grid2_add, grid2_centroid_lat[grid2_add], norm_factor);
     }
 #endif
@@ -200,10 +292,13 @@ void remap_conserv()
     delete [] grid2_centroid_lat;
     delete [] grid2_centroid_lon;
     delete [] wts;
-    /* delete search arrays */
-    //delete [] srch_add;
-    //delete [] srch_corner_lat;
-    //delete [] srch_corner_lon;
+#if 0
+    printf("debug link addrs\n");
+    for (int i = 0; i < grid1_size; i++)
+        printf("%6d--%6d\n", src_link_add[i*2], src_link_add[i*2+1]);
+    for (int i = 0; i < grid2_size; i++)
+        printf("%6d--%6d\n", dst_link_add[i*2], dst_link_add[i*2+1]);
+#endif
 }
 
 /* integrate around each cell on one grid */
@@ -252,7 +347,6 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
     double *src_grid_centroid_lon, *dst_grid_centroid_lon;
     bool *src_grid_mask, *dst_grid_mask;
     double *src_grid_area, *dst_grid_area;
-    double *src_grid_frac, *dst_grid_frac;
     double *src_grid_bound_box, *dst_grid_bound_box;
 
     // define variables according to choice(=1 =2)
@@ -280,8 +374,6 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
         dst_grid_mask = grid2_mask;
         src_grid_area = grid1_area;
         dst_grid_area = grid2_area;
-        src_grid_frac = grid1_frac;
-        dst_grid_frac = grid2_frac;
         src_grid_bound_box = grid1_bound_box;
         dst_grid_bound_box = grid2_bound_box;
         src_grid_corners = grid1_corners;
@@ -311,8 +403,6 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
         dst_grid_mask = grid1_mask;
         src_grid_area = grid2_area;
         dst_grid_area = grid1_area;
-        src_grid_frac = grid2_frac;
-        dst_grid_frac = grid1_frac;
         src_grid_bound_box = grid2_bound_box;
         dst_grid_bound_box = grid1_bound_box;
         src_grid_corners = grid2_corners;
@@ -331,6 +421,9 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
     // integrate around on on each src_grid cell
     for (src_grid_add = 0; src_grid_add < src_grid_size; src_grid_add ++)
     {
+#if _DEBUG_STORE_LINK_
+        printf("index: %d\n", src_grid_add + 1);
+#endif
         // restrict searches first using search bins
         min_add = dst_grid_size;
         max_add = -1;
@@ -371,9 +464,6 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
             if (srch_mask[dst_grid_add])
                 num_srch_cells ++;
         }
-#if _DEBUG_SRCH_
-        printf("%5d%5d%5d\n", min_add+1, max_add+1, num_srch_cells);
-#endif
         // create search arrays
         //printf("num_srch_cells of grid %d: %d\n", src_grid_add, num_srch_cells);
         /*
@@ -398,6 +488,12 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
                 n++;
             }
         }
+
+#if _DEBUG_SRCH_
+        printf("%5d%5d%5d\n", min_add+1, max_add+1, num_srch_cells);
+        for (int srch = 0; srch < num_srch_cells; srch ++)
+            printf("%d\n", srch_add[srch]);
+#endif
 
         // integrate around this cell
         int num_corner = src_grid_corners[src_grid_add];
@@ -444,9 +540,20 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
                     }
 
                     // find next intersection of this segment with a grid line on dst grid
+
+#if _DEBUG_INPUT_OUTPUT_
+                    // input compare for debug
+                    printf("%6d:(%3.3f %3.3f) (%3.3f %3.3f %3.3f %3.3f) (%3.3f %3.3f)",
+                            dst_grid_add + 1, intrsct_lat, intrsct_lon,
+                            beglat, beglon, endlat, endlon, begseg[0], begseg[1]);
+                    if (lrevers)
+                        printf(" true\n");
+                    else
+                        printf(" false\n");
+#endif
                     intersection(dst_grid_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
                     lbegin = false;
-
+                    
                     // compute line integral for this subsegment
                     if (dst_grid_add != -1)
                     {
@@ -458,13 +565,14 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
                     }
                     else
                     {
+                        //printf("unhappy\n");
                         line_integral(conserv_weights, num_wts, beglon, intrsct_lon, beglat, intrsct_lat,
                                 src_grid_center_lat[src_grid_add],
                                 src_grid_center_lon[src_grid_add],
                                 src_grid_center_lat[src_grid_add],
                                 src_grid_center_lon[src_grid_add]);
                     }
-
+                    //printf("%3.6f %3.6f vs %3.6f %3.6f\n", intrsct_lat, intrsct_lon, beglat, beglon);
                     // if integrating in reverse order, change sign of weights
                     if (lrevers)
                     {
@@ -481,7 +589,10 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
                         {
                             if (grid1_mask[src_grid_add])
                             {
-                                //store_link_cnsrv(src_grid_add, dst_grid_add, conserv_weights, num_wts);
+#if _DEBUG_STORE_LINK_
+                                printf("store link %6d--%6d\n", src_grid_add, dst_grid_add);
+#endif
+                                store_link_cnsrv(src_grid_add, dst_grid_add, conserv_weights, num_wts);
                                 grid1_frac[src_grid_add] += conserv_weights[0];
                                 grid2_frac[dst_grid_add] += conserv_weights[num_wts];
                             }
@@ -493,13 +604,20 @@ int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid
                         {
                             if (grid1_mask[dst_grid_add])
                             {
-                                //store_link_cnsrv(dst_grid_add, src_grid_add, conserv_weights, num_wts);
+#if _DEBUG_STORE_LINK_
+                                printf("store link %6d--%6d\n", dst_grid_add, src_grid_add);
+#endif
+                                store_link_cnsrv(dst_grid_add, src_grid_add, conserv_weights, num_wts);
                                 grid1_frac[dst_grid_add] += conserv_weights[0];
                                 grid2_frac[src_grid_add] += conserv_weights[num_wts];
                             }
                         }
                     }
 
+#if _DEBUG_LINKS_
+                    printf("%6d--%6d: %3.6f--%3.6f--%3.6f\n", src_grid_add, dst_grid_add, 
+                            conserv_weights[0], conserv_weights[1], conserv_weights[2]);
+#endif
                     src_grid_area[src_grid_add] += conserv_weights[0];
                     src_grid_centroid_lat[src_grid_add] += conserv_weights[1];
                     src_grid_centroid_lon[src_grid_add] += conserv_weights[2];
