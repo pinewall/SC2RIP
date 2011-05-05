@@ -51,8 +51,8 @@ void store_link_cnsrv(int add1, int add2, double *weights, int num_weights)
     for (nlink = min_link; nlink <= max_link; nlink ++)
     //for (nlink = 0; nlink < num_links_map; nlink ++)
     {
-        if (add1 == grid1_add_map[nlink] &&
-            add2 == grid2_add_map[nlink])
+        if ((add1 == grid1_add_map[nlink]) &&
+            (add2 == grid2_add_map[nlink]))
         {
             for (int i = 0; i < num_wts; i++)
             {

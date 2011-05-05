@@ -17,7 +17,6 @@ void remap_conserv()
     double *grid2_centroid_lon;
     double *grid1_centroid_lat;
     double *grid1_centroid_lon;
-    double *wts;
 
     /* initial centroid arrays */
     grid1_centroid_lat = new double [grid1_size];
@@ -38,24 +37,409 @@ void remap_conserv()
     memset(srch_corner_lat, 0, sizeof(double) * SRCH_SIZE * SRCH_CORNER_MAX);
     memset(srch_corner_lon, 0, sizeof(double) * SRCH_SIZE * SRCH_CORNER_MAX);
 
-    wts = new double[num_wts];
+    int max_subseg = 1000;      // max number of subsegments per segment to prevent infinite loop
+    int num_subseg;             // number of subsegments
+    int n, nwgt;                // generic counter
+    int corner, next_corn;      // corner of cell that segment starts from and ends on
+    int min_add, max_add;               // store min/max index
+
+    bool lcoinc;                // flag for coincident segments
+    bool lrevers;               // flag for reversing direction of segment
+    bool lbegin;                // flag for first integration of a segment
+    bool *srch_mask;            // mask for restricting searches
+
+    double intrsct_lat;         // lat of next intersect
+    double intrsct_lon;         // lon of next intersect
+    double beglat, endlat;      // endpoints of current seg
+    double beglon, endlon;
+    double *begseg;             // begin lat/lon for full segment
+    double *conserv_weights;            // temp for weights
+
+    // init variables
+    intrsct_lat = ZERO;
+    intrsct_lon = ZERO;
+    begseg = new double[2];
+    conserv_weights = new double[num_wts * 2];
 
     /* integrate around each cell on grid1 */
-    int error = 0;
-    error = conserv_sweep(INTEGRATE_AROUND_SRC_GRID, grid1_centroid_lat, grid1_centroid_lon, grid2_centroid_lat, grid2_centroid_lon);
-    if (error == 1)
+    // allocate srch_mask
+    srch_mask = new bool [grid2_size];
+    memset(srch_mask, false, sizeof(bool) * grid2_size);
+
+    // integrate around on on each src_grid cell
+    for (grid1_add = 0; grid1_add < grid1_size; grid1_add ++)
     {
-        printf("\n");
-        return;
+#if _DEBUG_WEIGHTS_3_
+        printf("index: %d\n", grid1_add + 1);
+#endif
+        // restrict searches first using search bins
+        min_add = grid2_size;
+        max_add = -1;
+        for (n = 0; n < num_srch_bins; n++)
+        {
+            if (grid1_add >= bin_addr1[n*2] && 
+                    grid1_add <= bin_addr1[n*2 + 1])
+            {
+                min_add = MIN(min_add, bin_addr2[n*2]);
+                max_add = MAX(max_add, bin_addr2[n*2 + 1]);
+            }
+        }
+        
+        // further restrict searches using bounding boxes
+        num_srch_cells = 0;     // extern global var
+        //printf("from %d to %d\n", min_add, max_add);
+        for (grid2_add = min_add; grid2_add <= max_add; grid2_add ++)
+        {
+            srch_mask[grid2_add] = true;
+            srch_mask[grid2_add] &= 
+                (grid2_bound_box[grid2_add * BOUNDBOX_SIZE] <= grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 1]);
+            srch_mask[grid2_add] &=
+                (grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 1] >= grid1_bound_box[grid1_add * BOUNDBOX_SIZE]);
+            srch_mask[grid2_add] &=
+                ( grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 2] <= grid1_bound_box[grid1_add *BOUNDBOX_SIZE + 3]);
+                //le( grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 2], grid1_bound_box[grid1_add *BOUNDBOX_SIZE + 3]);
+            srch_mask[grid2_add] &=
+                ( grid2_bound_box[grid2_add *BOUNDBOX_SIZE + 3] >= grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 2]);
+                //ge( grid2_bound_box[grid2_add *BOUNDBOX_SIZE + 3], grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 2]);
+            if (_3D_BOUND_BOX_)         // using 3D bound box option
+            {
+                srch_mask[grid2_add] &=
+                    (grid2_bound_box[grid2_add * BOUNDBOX_SIZE] + 4 <= grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 5]);
+                srch_mask[grid2_add] &=
+                    (grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 5] >= grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 4]);
+            }
+
+            if (srch_mask[grid2_add])
+                num_srch_cells ++;
+        }
+        // create search arrays
+        n = 0;
+        for (grid2_add = min_add; grid2_add <= max_add; grid2_add ++)
+        {
+            if (srch_mask[grid2_add])
+            {
+                srch_add[n] = grid2_add;
+                for (corner = 0; corner < grid2_corners[grid2_add]; corner ++)
+                {
+                    srch_corner_lat[n * grid2_corners_max + corner] = 
+                        grid2_corner_lat[grid2_add * grid2_corners_max + corner];
+                    srch_corner_lon[n * grid2_corners_max + corner] = 
+                        grid2_corner_lon[grid2_add * grid2_corners_max + corner];
+                }
+                n++;
+            }
+        }
+
+        // integrate around this cell
+        int num_corner = grid1_corners[grid1_add];
+        for (corner = 0; corner < num_corner; corner ++)
+        {
+            next_corn = (corner + 1) %  num_corner;
+
+            // define endpoints of the current segment
+            int corndex = grid1_add * grid1_corners_max;
+            beglat = grid1_corner_lat [corndex + corner];
+            beglon = grid1_corner_lon [corndex + corner];
+            endlat = grid1_corner_lat [corndex + next_corn];
+            endlon = grid1_corner_lon [corndex + next_corn];
+            lrevers = false;
+
+            // to ensure exact path taken during both sweeps, always integrate segments in the same direction (SW TO NE)
+            if ((endlat < beglat) || 
+                    (endlat == beglat && endlon < beglon ))
+            {
+                beglat = grid1_corner_lat [corndex + next_corn];
+                beglon = grid1_corner_lon [corndex + next_corn];
+                endlat = grid1_corner_lat [corndex + corner];
+                endlon = grid1_corner_lon [corndex + corner];
+                lrevers = true;
+            }
+
+            begseg[0] = beglat;
+            begseg[1] = beglon;
+            lbegin = true;
+            num_subseg = 0;
+
+            // if this is a constant-longitude segment, skip the rest since the line integral contribution will be zero
+            if (nonzero(endlon - beglon))
+            {
+                // integrate along this segment, detecting intersections and computing the line integral for each sub-segment
+                while (nonzero(beglat - endlat) || nonzero(beglon - endlon))
+                {
+                    // prevent infinite loops if integration gets stuck near cell or threshold boundary
+                    num_subseg ++;
+                    if (num_subseg > max_subseg)
+                    {
+                        printf("Integrate stalled: num_subseg exceeded limit @ src_grid %d\n", grid1_add);
+                    }
+
+                    // find next intersection of this segment with a grid line on dst grid
+
+#if _DEBUG_INPUT_OUTPUT_
+                    // input compare for debug
+                    printf("%6d:(%3.3f %3.3f) (%3.3f %3.3f %3.3f %3.3f) (%3.3f %3.3f)",
+                            grid2_add + 1, intrsct_lat, intrsct_lon,
+                            beglat, beglon, endlat, endlon, begseg[0], begseg[1]);
+                    if (lrevers)
+                        printf(" true\n");
+                    else
+                        printf(" false\n");
+#endif
+                    intersection(grid2_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
+                    lbegin = false;
+                    
+                    // compute line integral for this subsegment
+                    if (grid2_add != -1)
+                    {
+                        line_integral(conserv_weights, num_wts, beglon, intrsct_lon, beglat, intrsct_lat, 
+                                grid1_center_lat[grid1_add],
+                                grid1_center_lon[grid1_add],
+                                grid2_center_lat[grid2_add],
+                                grid2_center_lon[grid2_add]);
+                    }
+                    else
+                    {
+                        //printf("unhappy\n");
+                        line_integral(conserv_weights, num_wts, beglon, intrsct_lon, beglat, intrsct_lat,
+                                grid1_center_lat[grid1_add],
+                                grid1_center_lon[grid1_add],
+                                grid1_center_lat[grid1_add],
+                                grid1_center_lon[grid1_add]);
+                    }
+                    //printf("%3.6f %3.6f vs %3.6f %3.6f\n", intrsct_lat, intrsct_lon, beglat, beglon);
+                    // if integrating in reverse order, change sign of weights
+                    if (lrevers)
+                    {
+                        for (int i = 0; i < num_wts * 2; i++)
+                        {
+                            conserv_weights[i] = - conserv_weights[i];
+                        }
+                    }
+                    
+                    // store the appropriate addresses and weights. also add contributions to cell areas and centroids
+                    if (grid2_add != -1)
+                    {
+                        if (grid1_mask[grid1_add])
+                        {
+#if _DEBUG_STORE_LINK_
+                            printf("%6d--%6d: %3.8f %3.8f %3.8f %3.8f %3.8f %3.8f\n", grid1_add, grid2_add, 
+                                    conserv_weights[0], conserv_weights[1], conserv_weights[2],
+                                    conserv_weights[num_wts], conserv_weights[num_wts+1], conserv_weights[num_wts+2]);
+#endif
+                            store_link_cnsrv(grid1_add, grid2_add, conserv_weights, 3);
+                            grid1_frac[grid1_add] += conserv_weights[0];
+                            grid2_frac[grid2_add] += conserv_weights[num_wts];
+                        }
+                    }
+
+#if _DEBUG_LINKS_
+                    printf("%6d--%6d: %3.8f\t%3.8f\t%3.8f\n", grid1_add+1, grid2_add+1, 
+                            conserv_weights[0], conserv_weights[1], conserv_weights[2]);
+#endif
+                    grid1_area[grid1_add] += conserv_weights[0];
+                    grid1_centroid_lat[grid1_add] += conserv_weights[1];
+                    grid1_centroid_lon[grid1_add] += conserv_weights[2];
+
+                    // reset beglat and beglon for next subsegment
+                    beglat = intrsct_lat;
+                    beglon = intrsct_lon;
+                }
+            }
+        }
     }
+    delete [] srch_mask;
 
     /* integrate around each cell on grid2 */
-    error = conserv_sweep(INTEGRATE_AROUND_DST_GRID, grid1_centroid_lat, grid1_centroid_lon, grid2_centroid_lat, grid2_centroid_lon);
-    if (error == 1)
+    // allocate srch_mask
+    srch_mask = new bool [grid1_size];
+    memset(srch_mask, false, sizeof(bool) * grid1_size);
+
+    // integrate around on on each grid2 cell
+    for (grid2_add = 0; grid2_add < grid2_size; grid2_add ++)
     {
-        printf("\n");
-        return;
+#if _DEBUG_STORE_LINK_
+        //printf("index: %d\n", grid2_add + 1);
+#endif
+        // restrict searches first using search bins
+        min_add = grid1_size;
+        max_add = -1;
+        for (n = 0; n < num_srch_bins; n++)
+        {
+            if (grid2_add >= bin_addr2[n*2] && 
+                    grid2_add <= bin_addr2[n*2 + 1])
+            {
+                min_add = MIN(min_add, bin_addr1[n*2]);
+                max_add = MAX(max_add, bin_addr1[n*2 + 1]);
+            }
+        }
+        
+        // further restrict searches using bounding boxes
+        num_srch_cells = 0;     // extern global var
+        //printf("from %d to %d\n", min_add, max_add);
+        for (grid1_add = min_add; grid1_add <= max_add; grid1_add ++)
+        {
+            srch_mask[grid1_add] = true;
+            srch_mask[grid1_add] &= 
+                (grid1_bound_box[grid1_add * BOUNDBOX_SIZE] <= grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 1]);
+            srch_mask[grid1_add] &=
+                (grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 1] >= grid2_bound_box[grid2_add * BOUNDBOX_SIZE]);
+            srch_mask[grid1_add] &=
+                ( grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 2] <= grid2_bound_box[grid2_add *BOUNDBOX_SIZE + 3]);
+                //le( grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 2], grid2_bound_box[grid2_add *BOUNDBOX_SIZE + 3]);
+            srch_mask[grid1_add] &=
+                ( grid1_bound_box[grid1_add *BOUNDBOX_SIZE + 3] >= grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 2]);
+                //ge( grid1_bound_box[grid1_add *BOUNDBOX_SIZE + 3], grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 2]);
+            if (_3D_BOUND_BOX_)         // using 3D bound box option
+            {
+                srch_mask[grid1_add] &=
+                    (grid1_bound_box[grid1_add * BOUNDBOX_SIZE] + 4 <= grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 5]);
+                srch_mask[grid1_add] &=
+                    (grid1_bound_box[grid1_add * BOUNDBOX_SIZE + 5] >= grid2_bound_box[grid2_add * BOUNDBOX_SIZE + 4]);
+            }
+
+            if (srch_mask[grid1_add])
+                num_srch_cells ++;
+        }
+        // create search arrays
+        n = 0;
+        for (grid1_add = min_add; grid1_add <= max_add; grid1_add ++)
+        {
+            if (srch_mask[grid1_add])
+            {
+                srch_add[n] = grid1_add;
+                for (corner = 0; corner < grid1_corners[grid1_add]; corner ++)
+                {
+                    srch_corner_lat[n * grid1_corners_max + corner] = 
+                        grid1_corner_lat[grid1_add * grid1_corners_max + corner];
+                    srch_corner_lon[n * grid1_corners_max + corner] = 
+                        grid1_corner_lon[grid1_add * grid1_corners_max + corner];
+                }
+                n++;
+            }
+        }
+
+        // integrate around this cell
+        int num_corner = grid2_corners[grid2_add];
+        for (corner = 0; corner < num_corner; corner ++)
+        {
+            next_corn = (corner + 1) %  num_corner;
+
+            // define endpoints of the current segment
+            int corndex = grid2_add * grid2_corners_max;
+            beglat = grid2_corner_lat [corndex + corner];
+            beglon = grid2_corner_lon [corndex + corner];
+            endlat = grid2_corner_lat [corndex + next_corn];
+            endlon = grid2_corner_lon [corndex + next_corn];
+            lrevers = false;
+
+            // to ensure exact path taken during both sweeps, always integrate segments in the same direction (SW TO NE)
+            if ((endlat < beglat) || 
+                    (endlat == beglat && endlon < beglon ))
+            {
+                beglat = grid2_corner_lat [corndex + next_corn];
+                beglon = grid2_corner_lon [corndex + next_corn];
+                endlat = grid2_corner_lat [corndex + corner];
+                endlon = grid2_corner_lon [corndex + corner];
+                lrevers = true;
+            }
+
+            begseg[0] = beglat;
+            begseg[1] = beglon;
+            lbegin = true;
+            num_subseg = 0;
+
+            // if this is a constant-longitude segment, skip the rest since the line integral contribution will be zero
+            if (nonzero(endlon - beglon))
+            {
+                // integrate along this segment, detecting intersections and computing the line integral for each sub-segment
+                while (nonzero(beglat - endlat) || nonzero(beglon - endlon))
+                {
+                    // prevent infinite loops if integration gets stuck near cell or threshold boundary
+                    num_subseg ++;
+                    if (num_subseg > max_subseg)
+                    {
+                        printf("Integrate stalled: num_subseg exceeded limit @ grid2 %d\n", grid2_add);
+                    }
+
+                    // find next intersection of this segment with a grid line on dst grid
+
+#if _DEBUG_INPUT_OUTPUT_
+                    // input compare for debug
+                    if (false)
+                    {
+                    printf("%6d:(%3.3f %3.3f) (%3.3f %3.3f %3.3f %3.3f) (%3.3f %3.3f)",
+                            grid1_add + 1, intrsct_lat, intrsct_lon,
+                            beglat, beglon, endlat, endlon, begseg[0], begseg[1]);
+                    if (lrevers)
+                        printf(" true\n");
+                    else
+                        printf(" false\n");
+                    }
+#endif
+                    intersection(grid1_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
+                    lbegin = false;
+                    
+                    // compute line integral for this subsegment
+                    if (grid1_add != -1)
+                    {
+                        line_integral(conserv_weights, num_wts, beglon, intrsct_lon, beglat, intrsct_lat, 
+                                grid1_center_lat[grid1_add],
+                                grid1_center_lon[grid1_add],
+                                grid2_center_lat[grid2_add],
+                                grid2_center_lon[grid2_add]);
+                    }
+                    else
+                    {
+                        //printf("unhappy\n");
+                        line_integral(conserv_weights, num_wts, beglon, intrsct_lon, beglat, intrsct_lat,
+                                grid2_center_lat[grid2_add],
+                                grid2_center_lon[grid2_add],
+                                grid2_center_lat[grid2_add],
+                                grid2_center_lon[grid2_add]);
+                    }
+                    //printf("%3.6f %3.6f vs %3.6f %3.6f\n", intrsct_lat, intrsct_lon, beglat, beglon);
+                    // if integrating in reverse order, change sign of weights
+                    if (lrevers)
+                    {
+                        for (int i = 0; i < num_wts * 2; i++)
+                        {
+                            conserv_weights[i] = - conserv_weights[i];
+                        }
+                    }
+
+                    // store the appropriate addresses and weights. also add contributions to cell areas and centroids
+                    if (grid1_add != -1 && !lcoinc)
+                    {
+                        if (grid1_mask[grid1_add])
+                        {
+#if _DEBUG_STORE_LINK_
+                            printf("%6d--%6d: %3.8f %3.8f %3.8f %3.8f %3.8f %3.8f\n", grid1_add, grid2_add, 
+                                    conserv_weights[0], conserv_weights[1], conserv_weights[2],
+                                    conserv_weights[num_wts], conserv_weights[num_wts+1], conserv_weights[num_wts+2]);
+#endif
+                            store_link_cnsrv(grid1_add, grid2_add, conserv_weights, num_wts);
+                            grid1_frac[grid1_add] += conserv_weights[0];
+                            grid2_frac[grid2_add] += conserv_weights[num_wts];
+                        }
+                    }
+
+#if _DEBUG_LINKS_
+                    printf("%6d--%6d: %3.8f--%3.8f--%3.8f\n", grid2_add, grid1_add, 
+                            conserv_weights[0], conserv_weights[1], conserv_weights[2]);
+#endif
+                    grid2_area[grid2_add] += conserv_weights[num_wts];
+                    grid2_centroid_lat[grid2_add] += conserv_weights[num_wts + 1];
+                    grid2_centroid_lon[grid2_add] += conserv_weights[num_wts + 2];
+
+                    // reset beglat and beglon for next subsegment
+                    beglat = intrsct_lat;
+                    beglon = intrsct_lon;
+                }
+            }
+        }
     }
+
+    delete [] srch_mask;
     
 #if _DEBUG_INITIAL_WEIGHTS_ 
     // check weights
@@ -68,16 +452,18 @@ void remap_conserv()
 #endif
     /* correct for situations where N/S pole not explicitly included in grid (i.e. as a grid corner point). if pole is missing from only one grid, need to correct only the area and centroid of that grid. if missing from both, do complete weight calculation */
     int grid1_pole = -1, grid2_pole = -1;
-    double conserv_weights[3];
     conserv_weights[0] = PI2;
     conserv_weights[1] = PI * PI;
     conserv_weights[2] = ZERO;
+    conserv_weights[3] = PI2;
+    conserv_weights[4] = PI * PI;
+    conserv_weights[5] = ZERO;
 
     // for north pole
     for (int i = 0; i < grid1_size; i++)
     {
         if (grid1_area[i] < - THREE * PIH &&
-            grid1_centroid_lat[i] > ZERO)
+            grid1_center_lat[i] > ZERO)
         {
             grid1_pole = i;
             break;
@@ -86,48 +472,7 @@ void remap_conserv()
     for (int i = 0; i < grid2_size; i++)
     {
         if (grid2_area[i] < -THREE * PIH &&
-            grid2_centroid_lat[i] > ZERO)
-        {
-            grid2_pole = i;
-            break;
-        }
-    }
-    if (grid1_pole != -1)
-    {
-        grid1_area[grid1_pole] += conserv_weights[0];
-        grid1_centroid_lat[grid1_pole] += conserv_weights[1];
-        grid1_centroid_lon[grid1_pole] += ZERO;
-    }
-    if (grid2_pole != -1)
-    {
-        grid2_area[grid2_pole] += conserv_weights[0];
-        grid2_centroid_lat[grid2_pole] += conserv_weights[1];
-        grid2_centroid_lon[grid2_pole] += ZERO;
-    }
-    if (grid1_pole != -1 && grid2_pole != -1)
-    {
-        store_link_cnsrv(grid1_pole, grid2_pole, conserv_weights, num_wts);
-        grid1_frac[grid1_pole] += conserv_weights[0];
-        grid2_frac[grid2_pole] += conserv_weights[0];
-    }
-
-    // for south pole
-    grid1_pole = -1;
-    grid2_pole = -1;
-    conserv_weights[1] = -conserv_weights[1];
-    for (int i = 0; i < grid1_size; i++)
-    {
-        if (grid1_area[i] < - THREE * PIH &&
-            grid1_centroid_lat[i] < ZERO)
-        {
-            grid1_pole = i;
-            break;
-        }
-    }
-    for (int i = 0; i < grid2_size; i++)
-    {
-        if (grid2_area[i] < -THREE * PIH &&
-            grid2_centroid_lat[i] < ZERO)
+            grid2_center_lat[i] > ZERO)
         {
             grid2_pole = i;
             break;
@@ -141,15 +486,62 @@ void remap_conserv()
     }
     if (grid2_pole != -1)
     {
-        grid2_area[grid2_pole] += conserv_weights[0];
-        grid2_centroid_lat[grid2_pole] += conserv_weights[1];
-        grid2_centroid_lon[grid2_pole] += conserv_weights[2];
+        grid2_area[grid2_pole] += conserv_weights[num_wts];
+        grid2_centroid_lat[grid2_pole] += conserv_weights[num_wts + 1];
+        grid2_centroid_lon[grid2_pole] += conserv_weights[num_wts + 2];
     }
     if (grid1_pole != -1 && grid2_pole != -1)
     {
         store_link_cnsrv(grid1_pole, grid2_pole, conserv_weights, num_wts);
         grid1_frac[grid1_pole] += conserv_weights[0];
-        grid2_frac[grid2_pole] += conserv_weights[0];
+        grid2_frac[grid2_pole] += conserv_weights[num_wts];
+    }
+
+    // for south pole
+    grid1_pole = -1;
+    grid2_pole = -1;
+    conserv_weights[0] = PI2;
+    conserv_weights[1] = - PI * PI;
+    conserv_weights[2] = ZERO;
+    conserv_weights[3] = PI2;
+    conserv_weights[4] = - PI * PI;
+    conserv_weights[5] = ZERO;
+
+    for (int i = 0; i < grid1_size; i++)
+    {
+        if (grid1_area[i] < - THREE * PIH &&
+            grid1_center_lat[i] < ZERO)
+        {
+            grid1_pole = i;
+            break;
+        }
+    }
+    for (int i = 0; i < grid2_size; i++)
+    {
+        if (grid2_area[i] < -THREE * PIH &&
+            grid2_center_lat[i] < ZERO)
+        {
+            grid2_pole = i;
+            break;
+        }
+    }
+    if (grid1_pole != -1)
+    {
+        grid1_area[grid1_pole] += conserv_weights[0];
+        grid1_centroid_lat[grid1_pole] += conserv_weights[1];
+        grid1_centroid_lon[grid1_pole] += conserv_weights[2];
+    }
+    if (grid2_pole != -1)
+    {
+        grid2_area[grid2_pole] += conserv_weights[num_wts];
+        grid2_centroid_lat[grid2_pole] += conserv_weights[num_wts + 1];
+        grid2_centroid_lon[grid2_pole] += conserv_weights[num_wts + 2];
+    }
+    if (grid1_pole != -1 && grid2_pole != -1)
+    {
+        store_link_cnsrv(grid1_pole, grid2_pole, conserv_weights, num_wts);
+        grid1_frac[grid1_pole] += conserv_weights[0];
+        grid2_frac[grid2_pole] += conserv_weights[num_wts];
     }
     /* finish centroid computation */
     for (int n = 0; n < grid1_size; n++)
@@ -177,7 +569,7 @@ void remap_conserv()
         grid2_add = grid2_add_map[n];
         for (int nwgt = 0; nwgt < num_wts; nwgt ++)
         {
-            wts[nwgt] = wts_map[n*num_wts + nwgt];
+            conserv_weights[nwgt] = wts_map[n*num_wts + nwgt];
         }
 
         switch (norm_opt)
@@ -212,9 +604,9 @@ void remap_conserv()
                 norm_factor = ONE;
         }
 
-        wts_map[n*num_wts] = wts[0] * norm_factor;
-        wts_map[n*num_wts + 1] = (wts[1] - wts[0]*grid1_centroid_lat[grid1_add]) * norm_factor;
-        wts_map[n*num_wts + 2] = (wts[2] - wts[0]*grid1_centroid_lon[grid1_add]) * norm_factor;
+        wts_map[n*num_wts] = conserv_weights[0] * norm_factor;
+        wts_map[n*num_wts + 1] = (conserv_weights[1] - conserv_weights[0]*grid1_centroid_lat[grid1_add]) * norm_factor;
+        wts_map[n*num_wts + 2] = (conserv_weights[2] - conserv_weights[0]*grid1_centroid_lon[grid1_add]) * norm_factor;
     }    
 
     printf("Total number of links = %d\n", num_links_map);
@@ -225,6 +617,16 @@ void remap_conserv()
     for (int n = 0; n < grid2_size; n++)
         if (nonzero(grid2_area[n]))
             grid2_frac[n] /= grid2_area[n];
+
+#if _DEBUG_FINAL_WEIGHTS_ 
+// check weights
+for (int n = 0; n < num_links_map; n++)
+{
+    grid1_add = grid1_add_map[n];
+    grid2_add = grid2_add_map[n];
+    printf("%6d %6d  %3.8f %3.8f %3.8f\n", grid1_add+1, grid2_add+1, wts_map[num_wts * n], wts_map[num_wts * n + 1], wts_map[num_wts * n + 2]);
+}
+#endif
 
 
 #if _CHECK_AREA_CENTROID_
@@ -274,6 +676,7 @@ void remap_conserv()
                 break;
             case NORM_OPT_FRACAREA:
                 norm_factor = ONE;
+                break;
             case NORM_OPT_NONE:
                 if (luse_grid2_area)
                     norm_factor = grid2_area_in [n];
@@ -291,348 +694,6 @@ void remap_conserv()
     delete [] grid1_centroid_lon;
     delete [] grid2_centroid_lat;
     delete [] grid2_centroid_lon;
-    delete [] wts;
-#if 0
-    printf("debug link addrs\n");
-    for (int i = 0; i < grid1_size; i++)
-        printf("%6d--%6d\n", src_link_add[i*2], src_link_add[i*2+1]);
-    for (int i = 0; i < grid2_size; i++)
-        printf("%6d--%6d\n", dst_link_add[i*2], dst_link_add[i*2+1]);
-#endif
-}
-
-/* integrate around each cell on one grid */
-int conserv_sweep(int choice, double *grid1_centroid_lat, double *grid1_centroid_lon, 
-        double *grid2_centroid_lat, double *grid2_centroid_lon)
-{
-    // local variables of orignal remap_conserv
-    int max_subseg = 1000;      // max number of subsegments per segment to prevent infinite loop
-    int num_subseg;             // number of subsegments
-    int n, nwgt;                // generic counter
-    int corner, next_corn;      // corner of cell that segment starts from and ends on
-    int min_add, max_add;               // store min/max index
-
-    bool lcoinc;                // flag for coincident segments
-    bool lrevers;               // flag for reversing direction of segment
-    bool lbegin;                // flag for first integration of a segment
-    bool *srch_mask;            // mask for restricting searches
-
-    double intrsct_lat;         // lat of next intersect
-    double intrsct_lon;         // lon of next intersect
-    double beglat, endlat;      // endpoints of current seg
-    double beglon, endlon;
-    double *begseg;             // begin lat/lon for full segment
-    double *conserv_weights;            // temp for weights
-
-    // init variables
-    intrsct_lat = ZERO;
-    intrsct_lon = ZERO;
-    begseg = new double[2];
-    conserv_weights = new double[num_wts * 2];
-
-    // print sweep info
-    printf("grid%d sweep\n", choice);
-
-    // pointers to corresponding array
-    int src_grid_add, dst_grid_add;     // src/dst grid index
-    unsigned int src_grid_size, dst_grid_size;   // src/dst grid size
-    unsigned int src_grid_corners_max, dst_grid_corners_max;     // src/dst grid corner max
-    unsigned int *src_grid_corners, *dst_grid_corners;
-    int * src_grid_bin_addr, *dst_grid_bin_addr;        // src/dst srch bin lat range
-    double *src_grid_corner_lat, *dst_grid_corner_lat;  // pointer to extern array
-    double *src_grid_corner_lon, *dst_grid_corner_lon;
-    double *src_grid_center_lat, *dst_grid_center_lat;
-    double *src_grid_center_lon, *dst_grid_center_lon;
-    double *src_grid_centroid_lat, *dst_grid_centroid_lat;
-    double *src_grid_centroid_lon, *dst_grid_centroid_lon;
-    bool *src_grid_mask, *dst_grid_mask;
-    double *src_grid_area, *dst_grid_area;
-    double *src_grid_bound_box, *dst_grid_bound_box;
-
-    // define variables according to choice(=1 =2)
-    if (choice == INTEGRATE_AROUND_SRC_GRID)
-    {
-        src_grid_size = grid1_size;
-        dst_grid_size = grid2_size;
-        src_grid_corners_max = grid1_corners_max;
-        dst_grid_corners_max = grid2_corners_max;
-        src_grid_corner_lat = grid1_corner_lat;
-        dst_grid_corner_lat = grid2_corner_lat;
-        src_grid_bin_addr = bin_addr1;
-        dst_grid_bin_addr = bin_addr2;
-        src_grid_corner_lon = grid1_corner_lon;
-        dst_grid_corner_lon = grid2_corner_lon;
-        src_grid_center_lat = grid1_center_lat;
-        dst_grid_center_lat = grid2_center_lat;
-        src_grid_center_lon = grid1_center_lon;
-        dst_grid_center_lon = grid2_center_lon;
-        src_grid_centroid_lat = grid1_centroid_lat;
-        dst_grid_centroid_lat = grid2_centroid_lat;
-        src_grid_centroid_lon = grid1_centroid_lon;
-        dst_grid_centroid_lon = grid2_centroid_lon;
-        src_grid_mask = grid1_mask;
-        dst_grid_mask = grid2_mask;
-        src_grid_area = grid1_area;
-        dst_grid_area = grid2_area;
-        src_grid_bound_box = grid1_bound_box;
-        dst_grid_bound_box = grid2_bound_box;
-        src_grid_corners = grid1_corners;
-        dst_grid_corners = grid2_corners;
-    }
-    else if (choice == INTEGRATE_AROUND_DST_GRID)
-    {
-        src_grid_size = grid2_size;
-        dst_grid_size = grid1_size;
-        src_grid_corners_max = grid2_corners_max;
-        dst_grid_corners_max = grid1_corners_max;
-        src_grid_bin_addr = bin_addr2;
-        dst_grid_bin_addr = bin_addr1;
-        src_grid_corner_lat = grid2_corner_lat;
-        dst_grid_corner_lat = grid1_corner_lat;
-        src_grid_corner_lon = grid2_corner_lon;
-        dst_grid_corner_lon = grid1_corner_lon;
-        src_grid_center_lat = grid2_center_lat;
-        dst_grid_center_lat = grid1_center_lat;
-        src_grid_center_lon = grid2_center_lon;
-        dst_grid_center_lon = grid1_center_lon;
-        src_grid_centroid_lat = grid2_centroid_lat;
-        dst_grid_centroid_lat = grid1_centroid_lat;
-        src_grid_centroid_lon = grid2_centroid_lon;
-        dst_grid_centroid_lon = grid1_centroid_lon;
-        src_grid_mask = grid2_mask;
-        dst_grid_mask = grid1_mask;
-        src_grid_area = grid2_area;
-        dst_grid_area = grid1_area;
-        src_grid_bound_box = grid2_bound_box;
-        dst_grid_bound_box = grid1_bound_box;
-        src_grid_corners = grid2_corners;
-        dst_grid_corners = grid1_corners;
-    }
-    else
-    {
-        printf("No such sweep choice\n");
-        return 1;
-    }
-    
-    // allocate srch_mask
-    srch_mask = new bool [dst_grid_size];
-    memset(srch_mask, false, sizeof(bool) * dst_grid_size);
-
-    // integrate around on on each src_grid cell
-    for (src_grid_add = 0; src_grid_add < src_grid_size; src_grid_add ++)
-    {
-#if _DEBUG_STORE_LINK_
-        printf("index: %d\n", src_grid_add + 1);
-#endif
-        // restrict searches first using search bins
-        min_add = dst_grid_size;
-        max_add = -1;
-        for (n = 0; n < num_srch_bins; n++)
-        {
-            if (src_grid_add >= src_grid_bin_addr[n*2] && 
-                    src_grid_add <= src_grid_bin_addr[n*2 + 1])
-            {
-                min_add = MIN(min_add, dst_grid_bin_addr[n*2]);
-                max_add = MAX(max_add, dst_grid_bin_addr[n*2 + 1]);
-            }
-        }
-        
-        // further restrict searches using bounding boxes
-        num_srch_cells = 0;     // extern global var
-        //printf("from %d to %d\n", min_add, max_add);
-        for (dst_grid_add = min_add; dst_grid_add <= max_add; dst_grid_add ++)
-        {
-            srch_mask[dst_grid_add] = true;
-            srch_mask[dst_grid_add] &= 
-                (dst_grid_bound_box[dst_grid_add * BOUNDBOX_SIZE] <= src_grid_bound_box[src_grid_add * BOUNDBOX_SIZE + 1]);
-            srch_mask[dst_grid_add] &=
-                (dst_grid_bound_box[dst_grid_add * BOUNDBOX_SIZE + 1] >= src_grid_bound_box[src_grid_add * BOUNDBOX_SIZE]);
-            srch_mask[dst_grid_add] &=
-                ( dst_grid_bound_box[dst_grid_add * BOUNDBOX_SIZE + 2] <= src_grid_bound_box[src_grid_add *BOUNDBOX_SIZE + 3]);
-                //le( dst_grid_bound_box[dst_grid_add * BOUNDBOX_SIZE + 2], src_grid_bound_box[src_grid_add *BOUNDBOX_SIZE + 3]);
-            srch_mask[dst_grid_add] &=
-                ( dst_grid_bound_box[dst_grid_add *BOUNDBOX_SIZE + 3] >= src_grid_bound_box[src_grid_add * BOUNDBOX_SIZE + 2]);
-                //ge( dst_grid_bound_box[dst_grid_add *BOUNDBOX_SIZE + 3], src_grid_bound_box[src_grid_add * BOUNDBOX_SIZE + 2]);
-            if (_3D_BOUND_BOX_)         // using 3D bound box option
-            {
-                srch_mask[dst_grid_add] &=
-                    (dst_grid_bound_box[dst_grid_add * BOUNDBOX_SIZE] + 4 <= src_grid_bound_box[src_grid_add * BOUNDBOX_SIZE + 5]);
-                srch_mask[dst_grid_add] &=
-                    (dst_grid_bound_box[dst_grid_add * BOUNDBOX_SIZE + 5] >= src_grid_bound_box[src_grid_add * BOUNDBOX_SIZE + 4]);
-            }
-
-            if (srch_mask[dst_grid_add])
-                num_srch_cells ++;
-        }
-        // create search arrays
-        //printf("num_srch_cells of grid %d: %d\n", src_grid_add, num_srch_cells);
-        /*
-           * To use static array instead of new/delete each time
-        srch_add = new int [num_srch_cells];
-        srch_corner_lat = new double [dst_grid_corners_max * num_srch_cells];
-        srch_corner_lon = new double [dst_grid_corners_max * num_srch_cells];
-        */
-        n = 0;
-        for (dst_grid_add = min_add; dst_grid_add <= max_add; dst_grid_add ++)
-        {
-            if (srch_mask[dst_grid_add])
-            {
-                srch_add[n] = dst_grid_add;
-                for (corner = 0; corner < dst_grid_corners[dst_grid_add]; corner ++)
-                {
-                    srch_corner_lat[n * dst_grid_corners_max + corner] = 
-                        dst_grid_corner_lat[dst_grid_add * dst_grid_corners_max + corner];
-                    srch_corner_lon[n * dst_grid_corners_max + corner] = 
-                        dst_grid_corner_lon[dst_grid_add * dst_grid_corners_max + corner];
-                }
-                n++;
-            }
-        }
-
-#if _DEBUG_SRCH_
-        printf("%5d%5d%5d\n", min_add+1, max_add+1, num_srch_cells);
-        for (int srch = 0; srch < num_srch_cells; srch ++)
-            printf("%d\n", srch_add[srch]);
-#endif
-
-        // integrate around this cell
-        int num_corner = src_grid_corners[src_grid_add];
-        for (corner = 0; corner < num_corner; corner ++)
-        {
-            next_corn = (corner + 1) %  num_corner;
-
-            // define endpoints of the current segment
-            int corndex = src_grid_add * src_grid_corners_max;
-            beglat = src_grid_corner_lat [corndex + corner];
-            beglon = src_grid_corner_lon [corndex + corner];
-            endlat = src_grid_corner_lat [corndex + next_corn];
-            endlon = src_grid_corner_lon [corndex + next_corn];
-            lrevers = false;
-
-            // to ensure exact path taken during both sweeps, always integrate segments in the same direction (SW TO NE)
-            if ((endlat < beglat) || 
-                    (endlat == beglat && endlon < beglon ))
-            {
-                beglat = src_grid_corner_lat [corndex + next_corn];
-                beglon = src_grid_corner_lon [corndex + next_corn];
-                endlat = src_grid_corner_lat [corndex + corner];
-                endlon = src_grid_corner_lon [corndex + corner];
-                lrevers = true;
-            }
-
-            begseg[0] = beglat;
-            begseg[1] = beglon;
-            lbegin = true;
-            num_subseg = 0;
-
-            // if this is a constant-longitude segment, skip the rest since the line integral contribution will be zero
-            if (nonzero(endlon - beglon))
-            {
-                // integrate along this segment, detecting intersections and computing the line integral for each sub-segment
-                while (nonzero(beglat - endlat) || nonzero(beglon - endlon))
-                {
-                    // prevent infinite loops if integration gets stuck near cell or threshold boundary
-                    num_subseg ++;
-                    if (num_subseg > max_subseg)
-                    {
-                        printf("Integrate stalled: num_subseg exceeded limit @ src_grid %d\n", src_grid_add);
-                        return 1;
-                    }
-
-                    // find next intersection of this segment with a grid line on dst grid
-
-#if _DEBUG_INPUT_OUTPUT_
-                    // input compare for debug
-                    printf("%6d:(%3.3f %3.3f) (%3.3f %3.3f %3.3f %3.3f) (%3.3f %3.3f)",
-                            dst_grid_add + 1, intrsct_lat, intrsct_lon,
-                            beglat, beglon, endlat, endlon, begseg[0], begseg[1]);
-                    if (lrevers)
-                        printf(" true\n");
-                    else
-                        printf(" false\n");
-#endif
-                    intersection(dst_grid_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
-                    lbegin = false;
-                    
-                    // compute line integral for this subsegment
-                    if (dst_grid_add != -1)
-                    {
-                        line_integral(conserv_weights, num_wts, beglon, intrsct_lon, beglat, intrsct_lat, 
-                                src_grid_center_lat[src_grid_add],
-                                src_grid_center_lon[src_grid_add],
-                                dst_grid_center_lat[dst_grid_add],
-                                dst_grid_center_lon[dst_grid_add]);
-                    }
-                    else
-                    {
-                        //printf("unhappy\n");
-                        line_integral(conserv_weights, num_wts, beglon, intrsct_lon, beglat, intrsct_lat,
-                                src_grid_center_lat[src_grid_add],
-                                src_grid_center_lon[src_grid_add],
-                                src_grid_center_lat[src_grid_add],
-                                src_grid_center_lon[src_grid_add]);
-                    }
-                    //printf("%3.6f %3.6f vs %3.6f %3.6f\n", intrsct_lat, intrsct_lon, beglat, beglon);
-                    // if integrating in reverse order, change sign of weights
-                    if (lrevers)
-                    {
-                        for (int i = 0; i < num_wts * 2; i++)
-                        {
-                            conserv_weights[i] = - conserv_weights[i];
-                        }
-                    }
-
-                    // store the appropriate addresses and weights. also add contributions to cell areas and centroids
-                    if (choice == INTEGRATE_AROUND_SRC_GRID)
-                    {
-                        if (dst_grid_add != -1)
-                        {
-                            if (grid1_mask[src_grid_add])
-                            {
-#if _DEBUG_STORE_LINK_
-                                printf("store link %6d--%6d\n", src_grid_add, dst_grid_add);
-#endif
-                                store_link_cnsrv(src_grid_add, dst_grid_add, conserv_weights, num_wts);
-                                grid1_frac[src_grid_add] += conserv_weights[0];
-                                grid2_frac[dst_grid_add] += conserv_weights[num_wts];
-                            }
-                        }
-                    }
-                    else if (choice == INTEGRATE_AROUND_DST_GRID)
-                    {
-                        if (dst_grid_add != -1 && !lcoinc)
-                        {
-                            if (grid1_mask[dst_grid_add])
-                            {
-#if _DEBUG_STORE_LINK_
-                                printf("store link %6d--%6d\n", dst_grid_add, src_grid_add);
-#endif
-                                store_link_cnsrv(dst_grid_add, src_grid_add, conserv_weights, num_wts);
-                                grid1_frac[dst_grid_add] += conserv_weights[0];
-                                grid2_frac[src_grid_add] += conserv_weights[num_wts];
-                            }
-                        }
-                    }
-
-#if _DEBUG_LINKS_
-                    printf("%6d--%6d: %3.6f--%3.6f--%3.6f\n", src_grid_add, dst_grid_add, 
-                            conserv_weights[0], conserv_weights[1], conserv_weights[2]);
-#endif
-                    src_grid_area[src_grid_add] += conserv_weights[0];
-                    src_grid_centroid_lat[src_grid_add] += conserv_weights[1];
-                    src_grid_centroid_lon[src_grid_add] += conserv_weights[2];
-
-                    // reset beglat and beglon for next subsegment
-                    beglat = intrsct_lat;
-                    beglon = intrsct_lon;
-                }
-            }
-        }
-    }
-    //printf("before delete weights\n");
-    delete [] srch_mask;
     delete [] begseg;
     delete [] conserv_weights;
-
-    return 0;
 }   

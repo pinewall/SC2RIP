@@ -86,7 +86,6 @@ int main()
     switch(map_type)
     {
         case MAP_TYPE_CONSERV:
-            cout << "Coming here!" << endl;
             remap_conserv();
             break;
         case MAP_TYPE_BILINEAR:
@@ -111,14 +110,6 @@ int main()
     printf("grid2 area\tgrid2 frac\n");
     for (int i = 0; i < grid2_size; i++)
         printf("%6d\t%3.6f\t%3.6f\n", i, grid2_area[i], grid2_frac[i]);
-#endif
-
-#if _DEBUG_FINAL_WEIGHTS_
-    printf("remapping weights\n");
-    for (int i = 0; i < num_links_map; i++)
-    {
-        printf("%6d\t%6d\t%2.6f\t%2.6f\t%2.6f\n", grid1_add_map[i], grid2_add_map[i], wts_map[i*num_wts], wts_map[i*num_wts+1], wts_map[i*num_wts+2]);
-    }
 #endif
 
     // reduce size of remapping arrays and then write reammping info to a file

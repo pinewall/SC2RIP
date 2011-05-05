@@ -17,13 +17,13 @@ void check_longitude_all(double *lon, int size);
 void check_latitude_all(double *lat, int size);
 
 // return minimal integer
-inline int MIN(int a, int b) {  return (a > b)?b:a; };
+inline int MIN(int a, int b) {  return ((a > b)?b:a); };
 // return maximize integer
-inline int MAX(int a, int b) {  return (a > b)?a:b; };
+inline int MAX(int a, int b) {  return ((a > b)?a:b); };
 // return absolute float
-inline double ABS(double d) {   return (d > 0)?(d):(-d); };
+inline double ABS(double d) {   return ((d > 0)?(d):(-d)); };
 // check whether a number is zero (nearly for float)
-inline bool zero(double num) {  return (ABS(num) < 1e-15); };
+inline bool zero(double num) {  return (ABS(num) < 1e-30); };
 // check whether a number is nonzero
 inline bool nonzero(double num) {   return !zero(num); };
 

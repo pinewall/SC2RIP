@@ -32,14 +32,15 @@ void intersection(int &location,
         double *begseg, bool lbegin, bool lrevers)
 {
     // local variables
+    double vec1_lat, vec1_lon;      // first vector
+    double vec2_lat, vec2_lon;      // second vector
+    double cp;                      // cross product value
     int n, next_n, cell, srch_corners, pole_loc;
     bool loutside;              // flags points outside grid
     double lon1, lon2;          // local longitude variables for segment
     double lat1, lat2;          // local latitude variables for segment
     double grdlon1, grdlon2;    // local longitude variables for grid cell
     double grdlat1, grdlat2;    // local latitude variables for grid cell
-    double vec1_lat, vec1_lon;  // vectors and cross product used during grid search
-    double cross_product;
     double eps, offset;         // small offset away from intersect
     double s1, s2, determ;      // variables used for linear solve to find intersection
     double mat1, mat2, mat3, mat4, rhs1, rhs2;
@@ -89,38 +90,101 @@ void intersection(int &location,
     else if ((lon2 - lon1) < - THREE * PIH)
         lon2 += PI2;
 
-
+    //printf("init: %f %f %f %f\n", lat1, lon1, lat2, lon2);
     s1 = ZERO;                  // parameter controling endpoints shift
 
     // search for location of this segment in ocean grid using cross product method to determine whether a point is enclosed by a cell
-    srch_corners = 4;
     bool quit = false;
-    while (!quit)
+    srch_corners = 4;
+
+    // if last segment crossed threshold, use that location
+    if (lthresh)
     {
-        // if last segment crossed threshold, use that location
-        if (lthresh)
-        {
-            for (cell = 0; cell < num_srch_cells; cell ++)
-            {
-                if (srch_add[cell] == last_loc)
-                {
-                    location = last_loc;
-                    eps = tiny;
-                    quit = true;
-                    break;
-                }
-            }
-        }
-        if (quit)
-            break;
-        // otherwise normal search algorithm
         for (cell = 0; cell < num_srch_cells; cell ++)
         {
-            double *corner_lat = srch_corner_lat + cell * srch_corners;
-            double *corner_lon = srch_corner_lon + cell * srch_corners;
-            bool cp = is_point_in(corner_lat, corner_lon, srch_corners,
-                    lat1, lon1, lat2, lon2, lcoinc, lrevers);
-            if (cp)
+            if (srch_add[cell] == last_loc)
+            {
+                location = last_loc;
+                eps = tiny;
+                quit = true;
+            }
+        }
+    }
+
+    // otherwise normal search algorithm
+    while (!quit)
+    {
+        for (cell = 0; cell < num_srch_cells; cell ++)
+        {
+            for (n = 0; n < srch_corners; n++)
+            {
+                next_n = (n + 1) % srch_corners;
+                vec1_lat = srch_corner_lat[cell*srch_corners + next_n] - srch_corner_lat[cell*srch_corners + n];
+                vec1_lon = srch_corner_lon[cell*srch_corners + next_n] - srch_corner_lon[cell*srch_corners + n];
+                vec2_lat = lat1 - srch_corner_lat[cell*srch_corners + n];
+                vec2_lon = lon1 - srch_corner_lon[cell*srch_corners + n];
+
+                // if endpoint coincident with vertex, offset the endpoint
+                if (zero(vec2_lat) && zero(vec2_lon))
+                {
+                    lat1 = lat1 +  1e-10 * (lat2 - lat1);
+                    lon1 = lon1 + 1e-10 * (lon2 - lon1);
+                    vec2_lat = lat1 - srch_corner_lat[cell*srch_corners + n];
+                    vec2_lon = lon1 - srch_corner_lon[cell*srch_corners + n];
+                }   
+
+                // check for 0.PI2 crossing
+                check_longitude(vec1_lon, - PI, PI);
+                check_longitude(vec2_lon, - PI, PI);
+                //printf("vec lon: %f %f\n", vec1_lon, vec2_lon);
+
+                /* cross product method
+                    using (x1,y1,0)X(x2,y2,0) = (0,0,x1y2-y1x2)
+                    to decide direction */
+                cp = vec1_lon * vec2_lat - vec2_lon * vec1_lat;
+                //printf("cp 1: %f\n", cp);
+
+            /** if the cross product for a side is zero, the point
+             *     lies exactly on the side or the side is degenerate
+             *     (zero length). if degenerate, set the cross 
+             *     product to a positive number. otherwise perform
+             *     another cross product between the side and the
+             *     segment itself.
+             * if this cross product is also zero, the line is
+             *     coincident with the cell boundary - perform the
+             *     dot product and only choose the cell if the dot
+             *     product is positive (parallel vs anti-parallel).
+            **/
+                if (zero(cp))
+                {
+                    if (nonzero(vec1_lat) || nonzero(vec1_lon))
+                    {
+                        vec2_lat = lat2 - lat1;
+                        vec2_lon = lon2 - lon1;
+
+                        check_longitude(vec2_lon, - PI, PI);
+
+                        cp = vec1_lon * vec2_lat - vec2_lon * vec1_lat;
+                    }
+                    else
+                        cp = ONE;
+
+                    if (zero(cp))
+                    {
+                        lcoinc = true;
+                        cp = vec1_lon * vec2_lon + vec1_lat * vec2_lat;
+                        if (lrevers)
+                            cp = -cp;
+                    }
+                }   
+
+                //printf("cp 2: %f\n", cp);
+                // if cp is less than zero, this cell doesn't work
+                if (cp < ZERO)
+                    break;
+            }
+            
+            if (n == srch_corners)
             {
                 location = srch_add[cell];
                 // if the beginning of this segment was outside the grid, ivert the segment so the intersection found will be the first intersection with the grid
@@ -146,7 +210,8 @@ void intersection(int &location,
         
         // if still no cell found, the point lies outside the grid. take some baby steps along the segment to see if any part of the segment lies inside the grid
         loutside = true;
-        s1 += 0.1;
+        //printf("loutside\n");
+        s1 += 0.5;
         lat1 = beglat + s1 * (endlat - beglat);
         lon1 = beglon + s1 * (lon2 - beglon);
 
@@ -295,85 +360,3 @@ void pole_intersection(int &location,
 {
 }
 
-/** this routine whether a point --given by lat/lon pair-- 
-  * in a cell with several corners --corner_num-- and lat/lon coords 
-  * @param[corner_lat, corner_lon]: pointer to header of corner info
-  * @param[corner_num]: number of corners
-  * @param[objlat, objlon]: point to judge whether in district
-  * @param[assistlat, assistlon]: assistant when obj on edge of district
-  **/
-bool is_point_in(double *corner_lat, double *corner_lon, 
-        int corner_num, double objlat, double objlon, 
-        double assistlat, double assistlon, bool &lcoinc, bool lrevers)
-{
-    double vec1_lat, vec1_lon;      // first vector
-    double vec2_lat, vec2_lon;      // second vector
-    double lat1, lon1;              // tmp
-    int n, next_n;                  // corner index
-    double cp;                      // cross product value
-    for (n = 0; n < corner_num; n++)
-    {
-        next_n = (n + 1) % corner_num;
-        vec1_lat = corner_lat[next_n] - corner_lat[n];
-        vec1_lon = corner_lon[next_n] - corner_lon[n];
-        vec2_lat = objlat - corner_lat[n];
-        vec2_lon = objlon - corner_lon[n];
-
-        // if endpoint coincident with vertex, offset the endpoint
-        if (zero(vec2_lat) && zero(vec2_lon))
-        {
-
-            vec2_lat = objlat + 1e-10 * (assistlat - objlat) 
-                - corner_lat[n];
-            vec2_lon = objlon + 1e-10 * (assistlon - objlon)
-                - corner_lon[n];
-        }
-
-        // check for 0.PI2 crossing
-        check_longitude(vec1_lon, - PI, PI);
-        check_longitude(vec2_lon, - PI, PI);
-
-        /* cross product method
-            using (x1,y1,0)X(x2,y2,0) = (0,0,x1y2-y1x2)
-            to decide direction */
-        cp = vec1_lon * vec2_lat - vec2_lon * vec1_lat;
-
-        /** if the cross product for a side is zero, the point
-          *     lies exactly on the side or the side is degenerate
-          *     (zero length). if degenerate, set the cross 
-          *     product to a positive number. otherwise perform
-          *     another cross product between the side and the
-          *     segment itself.
-          * if this cross product is also zero, the line is
-          *     coincident with the cell boundary - perform the
-          *     dot product and only choose the cell if the dot
-          *     product is positive (parallel vs anti-parallel).
-          **/
-        if (zero(cp))
-        {
-            if (nonzero(vec1_lat) || nonzero(vec1_lon))
-            {
-                vec2_lat = assistlat - objlat;
-                vec2_lon = assistlon - objlon;
-
-                check_longitude(vec2_lon, - PI, PI);
-
-                cp = vec1_lon * vec2_lat - vec2_lon * vec1_lat;
-            }
-            else
-                cp = ONE;
-
-            if (zero(cp))
-            {
-                lcoinc = true;
-                cp = vec1_lon * vec2_lon + vec1_lat * vec2_lat;
-                if (lrevers)
-                    cp = -cp;
-            }
-        }
-        // if cross product is less than zero, this cell doesn't work
-        if (cp < ZERO)
-            return false;
-    }
-    return true;
-}

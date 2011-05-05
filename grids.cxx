@@ -28,12 +28,7 @@ void grid_init(char *grid1_file, char *grid2_file)
 {
     grid_init_src(grid1_file);
     grid_init_dst(grid2_file);
-    printf("20447 corner lons\n");
-    printf("%3.6f\t%3.6f\t%3.6f\t%3.6f\n", grid2_corner_lon[20446*4], grid2_corner_lon[20446*4+1],
-                                           grid2_corner_lon[20446*4+2], grid2_corner_lon[20446*4+3]);
-    printf("20447 corner lats\n");
-    printf("%3.6f\t%3.6f\t%3.6f\t%3.6f\n", grid2_corner_lat[20446*4], grid2_corner_lat[20446*4+1],
-                                           grid2_corner_lat[20446*4+2], grid2_corner_lat[20446*4+3]);
+
     /* compute bounding boxes for restricting future grid searches */
     grid_cal_boundbox(grid1_bound_box, grid1_mask, grid1_size, grid1_center_lat, grid1_center_lon, grid1_corner_lat, grid1_corner_lon, grid1_corners, grid1_corners_max);    // bounding box for src grid
     grid_cal_boundbox(grid2_bound_box, grid2_mask, grid2_size, grid2_center_lat, grid2_center_lon, grid2_corner_lat, grid2_corner_lon, grid2_corners, grid2_corners_max);    // bounding box for dst grid

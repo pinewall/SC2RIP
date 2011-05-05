@@ -1,5 +1,5 @@
 COMPILE=icpc
-FLAGS=-g -O3
+FLAGS=-g -O0
 LINKS=-L/opt/netCDF/lib -lnetcdf -lm
 LIBS=-L/opt/netCDF/lib
 INCS=-I/opt/netCDF/include
@@ -25,12 +25,12 @@ remap_vars.o: $(GRID) $(UTILS)
 	$(COMPILE) $(FLAGS) remap_vars.cxx $(INCS) $(LIBS) -c
 io.o:
 	$(COMPILE) $(FLAGS) io.cxx -c
-intersection.o:
-	$(COMPILE) $(FLAGS) intersection.cxx -c
-line_integral.o:
-	$(COMPILE) $(FLAGS) line_integral.cxx -c
-store_link_cnsrv.o:
-	$(COMPILE) $(FLAGS) store_link_cnsrv.cxx -c
+intersection.o: utils.o
+	$(COMPILE) $(FLAGS) intersection.cxx -lm -c
+line_integral.o: utils.o
+	$(COMPILE) $(FLAGS) line_integral.cxx $(INCS) $(LIBS) -c
+store_link_cnsrv.o: remap_vars.o
+	$(COMPILE) $(FLAGS) store_link_cnsrv.cxx $(INCS) $(LIBS) -c
 namelist.o:
 	$(COMPILE) $(FLAGS) namelist.cxx -c
 utils.o:
@@ -44,4 +44,4 @@ iounits.o:
 timers.o:
 	$(COMPILE) $(FLAGS) timers.cxx -c
 clean:
-	rm *.o sc2rip interp_remap.nc
+	rm -f *.o sc2rip interp_remap.nc
