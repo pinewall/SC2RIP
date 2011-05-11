@@ -1,0 +1,11 @@
+Step1:
+cd ../c++
+make;./sc2rip > /dev/null;mv *.out ../remap_compare
+
+Step2:
+cd ../fortran
+make;.scrip > /dev/null;mv *.scrip ../remap_compare
+
+Step3:
+cd ../remap_compare
+./run.sh
