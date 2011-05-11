@@ -30,11 +30,25 @@ void finalize_intersection();
   * for an intersection must have already been restricted in the
   * calling routine
   **/
-void intersection(int &location, 
+// regular--regular version
+void ll_ll_intersection(int &location, 
         double &intrsct_lat, double &intrsct_lon, bool &lcoinc, 
         double beglat, double beglon, double endlat, double endlon, 
         double *begseg, bool lbegin, bool lrevers);
 
+// great-circle--regular version
+void gc_ll_intersection(int &location, 
+        double &intrsct_lat, double &intrsct_lon, bool &lcoinc, 
+        double beglat, double beglon, double endlat, double endlon, 
+        double *begseg, bool lbegin, bool lrevers);
+
+// regular--great-circle version
+void ll_gc_intersection(int &location, 
+        double &intrsct_lat, double &intrsct_lon, bool &lcoinc, 
+        double beglat, double beglon, double endlat, double endlon, 
+        double *begseg, bool lbegin, bool lrevers);
+
+// reserved for SCRIP
 void pole_intersection(int &location, 
         double &intrsct_lat, double &intrsct_lon, bool &lcoinc, 
         double beglat, double beglon, double endlat, double endlon, 

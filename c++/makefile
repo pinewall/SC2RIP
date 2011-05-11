@@ -1,5 +1,5 @@
 COMPILE=icpc
-FLAGS=-g -O0
+FLAGS=-g -O3
 LINKS=-L/opt/netCDF/lib -lnetcdf -lm
 LIBS=-L/opt/netCDF/lib
 INCS=-I/opt/netCDF/include
@@ -44,4 +44,4 @@ iounits.o:
 timers.o:
 	$(COMPILE) $(FLAGS) timers.cxx -c
 clean:
-	rm -f *.o sc2rip interp_remap.nc
+	rm -f *.o

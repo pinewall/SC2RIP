@@ -29,6 +29,26 @@ void grid_init(char *grid1_file, char *grid2_file)
     grid_init_src(grid1_file);
     grid_init_dst(grid2_file);
 
+    FILE * fp;
+    fp = fopen("grid_info.out", "wb");
+    if (fp == (FILE *)0)
+        printf("grid_info.out does not exist!\n");
+    double pih = - PIH;
+    double conv = deg2rad;
+    //fwrite(&pih, sizeof(double), 1, fp);
+    //fwrite(&conv, sizeof(double), 1, fp);
+    fwrite(grid1_center_lat, sizeof(double), grid1_size, fp);
+    fwrite(grid1_center_lon, sizeof(double), grid1_size, fp);
+    fwrite(grid1_corner_lat, sizeof(double), grid1_size * 4, fp);
+    fwrite(grid1_corner_lon, sizeof(double), grid1_size * 4, fp);
+
+    fwrite(grid2_center_lat, sizeof(double), grid2_size, fp);
+    fwrite(grid2_center_lon, sizeof(double), grid2_size, fp);
+    fwrite(grid2_corner_lat, sizeof(double), grid2_size * 4, fp);
+    fwrite(grid2_corner_lon, sizeof(double), grid2_size * 4, fp);
+    
+    fclose(fp);
+
     /* compute bounding boxes for restricting future grid searches */
     grid_cal_boundbox(grid1_bound_box, grid1_mask, grid1_size, grid1_center_lat, grid1_center_lon, grid1_corner_lat, grid1_corner_lon, grid1_corners, grid1_corners_max);    // bounding box for src grid
     grid_cal_boundbox(grid2_bound_box, grid2_mask, grid2_size, grid2_center_lat, grid2_center_lon, grid2_corner_lat, grid2_corner_lon, grid2_corners, grid2_corners_max);    // bounding box for dst grid

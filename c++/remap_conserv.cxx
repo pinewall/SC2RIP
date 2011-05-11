@@ -185,7 +185,7 @@ void remap_conserv()
                     else
                         printf(" false\n");
 #endif
-                    intersection(grid2_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
+                    ll_ll_intersection(grid2_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
                     lbegin = false;
                     
                     // compute line integral for this subsegment
@@ -376,7 +376,7 @@ void remap_conserv()
                         printf(" false\n");
                     }
 #endif
-                    intersection(grid1_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
+                    ll_ll_intersection(grid1_add, intrsct_lat, intrsct_lon, lcoinc, beglat, beglon, endlat, endlon, begseg, lbegin, lrevers);
                     lbegin = false;
                     
                     // compute line integral for this subsegment
@@ -450,6 +450,15 @@ void remap_conserv()
         printf("%6d %6d  %3.8f %3.8f %3.8f\n", grid1_add+1, grid2_add+1, wts_map[num_wts * n], wts_map[num_wts * n + 1], wts_map[num_wts * n + 2]);
     }
 #endif
+#if _BINARY_COMPARE_
+    FILE * wts_out;     // file for output weights
+    wts_out = fopen("initial_weights.out", "w");
+    if (wts_out == (FILE *)0)
+        printf("cannot open weights.out file\n");
+    fwrite(wts_map, sizeof(double), num_links_map * num_wts, wts_out);
+    fclose(wts_out);
+#endif
+
     /* correct for situations where N/S pole not explicitly included in grid (i.e. as a grid corner point). if pole is missing from only one grid, need to correct only the area and centroid of that grid. if missing from both, do complete weight calculation */
     int grid1_pole = -1, grid2_pole = -1;
     conserv_weights[0] = PI2;
@@ -626,6 +635,13 @@ for (int n = 0; n < num_links_map; n++)
     grid2_add = grid2_add_map[n];
     printf("%6d %6d  %3.8f %3.8f %3.8f\n", grid1_add+1, grid2_add+1, wts_map[num_wts * n], wts_map[num_wts * n + 1], wts_map[num_wts * n + 2]);
 }
+#endif
+#if _BINARY_COMPARE_
+    wts_out = fopen("final_weights.out", "w");
+    if (wts_out == (FILE *)0)
+        printf("cannot open weights.out file\n");
+    fwrite(wts_map, sizeof(double), num_links_map * num_wts, wts_out);
+    fclose(wts_out);
 #endif
 
 

@@ -115,8 +115,18 @@ int main()
     // reduce size of remapping arrays and then write reammping info to a file
     if (num_links_map != max_links_map)
         resize_remap_vars(num_links_map - max_links_map);
+    
+    printf("compare result between me and SCRIP before write_remap\n");
+    FILE * wts_out;     // file for output weights
+    wts_out = fopen("weights.out", "w");
+    if (wts_out == (FILE *)0)
+        printf("cannot open weights.out file\n");
+    fwrite(wts_map, sizeof(double), num_links_map * num_wts, wts_out);
+    fclose(wts_out);
+
+    //printf("ready to write weights to NETCDF\n");
     //write_remap(map_name, interp_file, output_opt);
-    //finalize_remap_vars();
+    finalize_remap_vars();
     //finalize_intersection();
 
     return 0;

@@ -26,7 +26,7 @@ void finalize_intersection()
   * for an intersection must have already been restricted in the
   * calling routine
   **/
-void intersection(int &location, 
+void ll_ll_intersection(int &location, 
         double &intrsct_lat, double &intrsct_lon, bool &lcoinc, 
         double beglat, double beglon, double endlat, double endlon, 
         double *begseg, bool lbegin, bool lrevers)
@@ -107,6 +107,7 @@ void intersection(int &location,
                 location = last_loc;
                 eps = tiny;
                 quit = true;
+                break;
             }
         }
     }

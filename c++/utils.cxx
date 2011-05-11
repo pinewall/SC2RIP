@@ -54,10 +54,18 @@ void check_longitude_all(double *lon, int size)
 // make sure latitude lies in -PIH-PIH
 void check_latitude(double &latitude)
 {
+/*
     if (zero(latitude - PIH))
         latitude = PIH;
     else if (zero(latitude + PIH))
         latitude = -PIH;
+*/
+
+    if (latitude > PIH)
+        latitude = PIH;
+    if (latitude < - PIH)
+        latitude = - PIH;
+
 }
 
 // make sure latitudes lie in -PIH-PIH
