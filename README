@@ -1,6 +1,11 @@
+==Comparation of Original fortran version and directly translated C++ version==
+
+Step0:
+cd directory\of\remap_compare
+
 Step1:
-cd ../c++
-make;./sc2rip > /dev/null;mv *.out ../remap_compare
+cd ../c++/restore_src
+make;./sc2rip > /dev/null;mv *.out ../../remap_compare
 
 Step2:
 cd ../fortran
@@ -9,3 +14,11 @@ make;.scrip > /dev/null;mv *.scrip ../remap_compare
 Step3:
 cd ../remap_compare
 ./run.sh
+
+==--------------------------------------------------------------------------==
+
+==Second C++ version with modification==
+
+cd c++/src
+
+==------------------------------------==

@@ -103,7 +103,7 @@ void write_remap(char *map_name, char *interp_file_str, int output_opt)
 
 
     // sort address and weight arrays
-    sort_add(grid2_add_map, grid1_add_map, wts_map, num_links_map, num_wts);
+    //sort_add(grid2_add_map, grid1_add_map, wts_map, num_links_map, num_wts);
 
     // call appropriate output routine
     switch (output_opt)
@@ -342,7 +342,7 @@ void write_remap_scrip(char *map_name, char *interp_file_str, int direction)
     nc_dims2_id[1] = nc_numwgts_id;
     nc_dims2_id[0] = nc_numlinks_id;
 
-    ncstat = nc_def_var (nc_file_id, "remap_maxtrix", NC_DOUBLE, 2, nc_dims2_id, &nc_rmpmatrix_id);
+    ncstat = nc_def_var (nc_file_id, "remap_matrix", NC_DOUBLE, 2, nc_dims2_id, &nc_rmpmatrix_id);
     ERR
 
 
