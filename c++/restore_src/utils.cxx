@@ -123,7 +123,6 @@ bool greaterequal(double lon1, double lon2)
     else
         return true;
 }
-
 /* String Functions */
 
 // string equals
@@ -223,4 +222,3 @@ void systime(char *timestr)
     strcat(timestr, ":");
     strcat(timestr, sec);
 }
-
