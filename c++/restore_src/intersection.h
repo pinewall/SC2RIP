@@ -20,9 +20,6 @@ extern bool lthresh;        // flags segments crossing threshold bndy
 extern double intrsct_lat_off;     // latitude coords offset for next search
 extern double intrsct_lon_off;     // longitude coords offset for next search
 
-// finalize intersection
-void finalize_intersection();
-
 /** this routine finds the next intersection of a destination grid
   * line with the line segment given by beglon, endlon, etc.
   * a coincidence flag is returnd if the segment is entirely

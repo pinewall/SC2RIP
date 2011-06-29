@@ -1,6 +1,11 @@
 #include "remap_conserv.h"
 #include "debug.h"
 
+double *grid2_centroid_lat; // centroid coords on each grid
+double *grid2_centroid_lon;
+double *grid1_centroid_lat;
+double *grid1_centroid_lon;
+
 /** this routine traces the perimeters of every grid cell on each
  *  grid checking for intersections with the other grid and computing
  *  line integrals for each subsegment
@@ -13,10 +18,6 @@ void remap_conserv()
 
     double norm_factor;         // factor for normalizing wts
 
-    double *grid2_centroid_lat; // centroid coords on each grid
-    double *grid2_centroid_lon;
-    double *grid1_centroid_lat;
-    double *grid1_centroid_lon;
 
     /* initial centroid arrays */
     grid1_centroid_lat = new double [grid1_size];
@@ -706,10 +707,26 @@ for (int n = 0; n < num_links_map; n++)
             printf("Error: sum of wts for map @%d\t %3.6f\t vs %3.6f\n", grid2_add, grid2_centroid_lat[grid2_add], norm_factor);
     }
 #endif
-    delete [] grid1_centroid_lat;
-    delete [] grid1_centroid_lon;
-    delete [] grid2_centroid_lat;
-    delete [] grid2_centroid_lon;
+    //delete [] grid1_centroid_lat;
+    //delete [] grid1_centroid_lon;
+    //delete [] grid2_centroid_lat;
+    //delete [] grid2_centroid_lon;
     delete [] begseg;
     delete [] conserv_weights;
-}   
+}
+
+void finalize_remap_conserv()
+{
+    delete [] grid1_centroid_lat;
+    delete [] grid2_centroid_lat;
+    delete [] grid1_centroid_lon;
+    delete [] grid2_centroid_lon;
+}
+
+// finalize intersection
+void finalize_intersection()
+{
+    delete [] srch_add;
+    delete [] srch_corner_lat;
+    delete [] srch_corner_lon;
+}

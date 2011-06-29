@@ -11,14 +11,6 @@ int *srch_add = NULL;              // global address of cells in srch arrays
 double *srch_corner_lat = NULL;    // lat of each corner of srch cells
 double *srch_corner_lon = NULL;    // lon of each corner of srch cells
 
-// finalize intersection
-void finalize_intersection()
-{
-    delete [] srch_add;
-    delete [] srch_corner_lat;
-    delete [] srch_corner_lon;
-}
-
 /** this routine finds the next intersection of a destination grid
   * line with the line segment given by beglon, endlon, etc.
   * a coincidence flag is returnd if the segment is entirely

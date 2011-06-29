@@ -4,17 +4,21 @@ LINKS=-L/opt/netCDF/lib -lnetcdf -lm
 LIBS=-L/opt/netCDF/lib
 INCS=-I/opt/netCDF/include
 
-OBJ= timers.o iounits.o $(GRID) $(CONSERV) remap_conserv.o $(REMAP) remap_write.o $(IO) $(UTILS)
+OBJ= timers.o iounits.o $(GRID) $(CONSERV) remap_conserv.o $(REMAP) remap_write.o $(IO) $(UTILS) $(NEIGHBOR)
 GRID=grids.o
 IO=io.o namelist.o
 UTILS= nc_error.o iounits.o utils.o 
 REMAP=remap.o remap_vars.o 
 CONSERV= intersection.o line_integral.o store_link_cnsrv.o
+NEIGHBOR= neighborhood.o gradient.o
 
 all: sc2rip
 sc2rip: $(OBJ)
 	$(COMPILE) $(FLAGS) sc2rip.cxx $(OBJ) -o sc2rip $(INCS) $(LINKS)
-
+neighborhood.o: remap_conserv.o
+	$(COMPILE) $(FLAGS) $(INCS) neighborhood.cxx -c
+gradient.o:
+	$(COMPILE) $(FLAGS) gradient.cxx -c
 remap_conserv.o: $(GRID) $(REMAP) $(CONSERV)
 	$(COMPILE) $(FLAGS) remap_conserv.cxx $(INCS) $(LIBS) -c
 remap_write.o: $(GRID) $(UTILS) $(REMAP)
@@ -44,4 +48,4 @@ iounits.o:
 timers.o:
 	$(COMPILE) $(FLAGS) timers.cxx -c
 clean:
-	rm -f *.o
+	rm -f *.o *.out interp_remap.nc

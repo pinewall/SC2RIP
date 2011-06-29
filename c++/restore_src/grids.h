@@ -60,4 +60,6 @@ void grid_srch_bin_init();
 void grid_assign_srch_bin(double *boundbox, int *addr, int grid_size);
 // grid debug
 void grid_debug();
+// grid finalize
+void finalize_grids();
 #endif

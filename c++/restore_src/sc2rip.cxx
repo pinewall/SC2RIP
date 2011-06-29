@@ -6,16 +6,25 @@
 #include "remap_vars.h"
 #include "namelist.h"
 #include "utils.h"
-
 #include "remap_write.h"
 #include "remap_algorithms.h"
+
+#include "neighborhood.h"
 
 #include "debug.h"
 
 #include <unistd.h>
+#include <string.h>
 #include <stdio.h>
+#include <math.h>
 #include <iostream>
 
+#define _TEST_CONSERV_REMAP_            1
+#define _TEST_CONSERV_REMAP_2ND_ORDER_  1
+#define _TEST_CASE_                     3
+#define _TEST_CASE_1_                   ((_TEST_CASE_ - 2)*(_TEST_CASE_ - 3))
+#define _TEST_CASE_2_                   ((_TEST_CASE_ - 3)*(_TEST_CASE_ - 1))
+#define _TEST_CASE_3_                   ((_TEST_CASE_ - 1)*(_TEST_CASE_ - 2))
 using namespace std;
 int main()
 {
@@ -56,6 +65,7 @@ int main()
         return 1;
     }
     printf("map_type: %d\n", map_type);
+    printf("num_wts: %d\n", num_wts);
 
     // normalize option settings; norm_opt declared in remap_vars.h
     if (streqls(normalize_opt, "none"))
@@ -125,9 +135,126 @@ int main()
     fclose(wts_out);
 
     //printf("ready to write weights to NETCDF\n");
-    //write_remap(map_name, interp_file, output_opt);
-    finalize_remap_vars();
-    //finalize_intersection();
+    write_remap(map_name, interp_file, output_opt);
 
+
+#if _TEST_CONSERV_REMAP_
+    /* prepare test data from analytical function */
+    double * array1 = new double [grid1_size];      // exact data as input
+    double * array2 = new double [grid2_size];      // exact data for comparing with remapping results
+    double   lat, lon;
+    for (int cell = 0; cell < grid1_size; cell ++)
+    {
+        lat = grid1_center_lat[cell];
+        lon = grid1_center_lon[cell];
+    #if _TEST_CASE_1_
+        array1[cell] = 1.0;
+    #endif
+    #if _TEST_CASE_2_
+        array1[cell] = cos(lat) * cos(lon);
+        //array1[cell] = cos(lat) * cos(lon);   // for conservative remapping, point value is not a good method, we should calculate area-average value
+    #endif
+    #if _TEST_CASE_3_
+        array1[cell] = 2 + cos(lat);
+    #endif
+    }
+
+    for (int cell = 0; cell < grid2_size; cell ++)
+    {
+        lat = grid2_center_lat[cell];
+        lon = grid2_center_lon[cell];
+    #if _TEST_CASE_1_
+        array2[cell] = 1.0;
+    #endif
+    #if _TEST_CASE_2_
+        array2[cell] = cos(lat) * cos(lon);
+    #endif
+    #if _TEST_CASE_3_
+        array2[cell] = 2 + cos(lat);
+    #endif
+    }
+
+    /* Calculate remapping result */
+    double * array2_1st = new double [grid2_size];           // allocate memory for remapping results
+    double * array2_2nd = new double [grid2_size];
+    double * array2_all = new double [grid2_size];
+    
+    memset(array2_1st, 0, grid2_size * sizeof(double));      // zero initalization
+    memset(array2_2nd, 0, grid2_size * sizeof(double));
+    memset(array2_all, 0, grid2_size * sizeof(double));
+
+
+    /* calculate first-order conservative remapping result */
+    num_wts = 3;
+    for (int link = 0; link < num_links_map; link ++)
+    {
+        array2_1st[grid2_add_map[link]] += wts_map[link * num_wts] * array1[grid1_add_map[link]];
+    }
+
+    #if _TEST_CONSERV_REMAP_2ND_ORDER_
+    /* calculate first-order conservative remapping result */
+    double * src_grad_lat  = new double [grid1_size];       // allocate memory for gradient
+    double * src_grad_lon  = new double [grid1_size];
+    memset(src_grad_lat, 0, sizeof(double) * grid1_size);   // zero initialization
+    memset(src_grad_lon, 0, sizeof(double) * grid1_size);
+    
+    Neighborhood * neighbor  = new Neighborhood("source", -1);
+
+    //neighbor->calculate_gradient_lat (src_grad_lat, src_array, grid1_size);
+    //neighbor->calculate_gradient_lon (src_grad_lon, src_array, grid1_size);
+    neighbor->calculate_gradient_latlon (src_grad_lat, src_grad_lon, array1, grid1_size);
+
+#if 0
+    // test gradients
+    for (int cell = 0; cell < grid1_size; cell ++)
+    {
+        printf("grad_lat(%3.6f) grad_lon(%3.6f)\n", src_grad_lat[cell], src_grad_lon[cell]);
+    }
+#endif
+
+    for (int link = 0; link < num_links_map; link ++)
+    {
+        array2_2nd[grid2_add_map[link]] += wts_map[link * num_wts + 1] * src_grad_lat[grid1_add_map[link]];
+        array2_2nd[grid2_add_map[link]] += wts_map[link * num_wts + 2] * src_grad_lon[grid1_add_map[link]];
+    }
+
+    #endif
+
+    /* add remapping results together */
+    for (int cell = 0; cell < grid2_size; cell ++)
+    {
+        array2_all[cell] = array2_1st[cell] + array2_2nd[cell];
+    }
+#if 0
+    /* test result */
+    for (int cell = 0; cell < grid2_size; cell ++)
+    {
+        if (grid2_frac[cell] > 0.001)
+        {
+            array2_1st[cell] /= grid2_frac[cell];
+            array2_all[cell] /= grid2_frac[cell];
+        }
+        else
+        {
+            array2_1st[cell] = 0.0;
+            array2_all[cell] = 0.0;
+        }
+    }
+#endif
+    printf("Exact        First        Second\n");
+    for (int cell = 0; cell < grid2_size; cell ++)
+    {
+        printf("%3.6f    %3.6f    %3.6f\n", array2[cell], array2_1st[cell], array2_all[cell]);
+    }
+#endif
+    delete array1;
+    delete array2;
+    delete array2_1st;
+    delete array2_2nd;
+    delete array2_all;
+    //finalize_intersection();
+    finalize_remap_conserv();
+    finalize_remap_vars();
+    finalize_grids();
     return 0;
 }

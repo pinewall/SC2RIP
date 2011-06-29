@@ -21,6 +21,11 @@
 #define SRCH_SIZE 1024
 #define SRCH_CORNER_MAX 8
 
+extern double *grid2_centroid_lat; // centroid coords on each grid
+extern double *grid2_centroid_lon;
+extern double *grid1_centroid_lat;
+extern double *grid1_centroid_lon;
+
 /** this routine traces the perimeters of every grid cell on each
  *  grid checking for intersections with the other grid and computing
  *  line integrals for each subsegment
@@ -30,4 +35,8 @@ void remap_conserv();
 /* integrate around each cell on one grid */
 int conserv_sweep(int choice, double *grid1_controid_lat, double *grid1_centroid_lon, double *grid2_centroid_lat, double *grid2_centroid_lon);
 
+void finalize_remap_conserv();
+
+// finalize intersection
+void finalize_intersection();
 #endif

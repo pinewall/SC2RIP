@@ -603,3 +603,21 @@ void grid_debug()
         printf("%d\t%d\n", bin_addr2[sbdex++], bin_addr2[sbdex++]);
     }
 }
+
+void finalize_grids()
+{
+    delete [] grid1_mask;
+    delete [] grid2_mask;
+    delete [] grid1_center_lat;
+    delete [] grid2_center_lat;
+    delete [] grid1_corner_lon;
+    delete [] grid2_corner_lon;
+    delete [] grid1_area;
+    delete [] grid2_area;
+    delete [] grid1_frac;
+    delete [] grid2_frac;
+    delete [] bin_addr1;
+    delete [] bin_addr2;
+    delete [] bin_lats;
+    delete [] bin_lons;
+}

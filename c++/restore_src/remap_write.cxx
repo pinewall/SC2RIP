@@ -342,7 +342,7 @@ void write_remap_scrip(char *map_name, char *interp_file_str, int direction)
     nc_dims2_id[1] = nc_numwgts_id;
     nc_dims2_id[0] = nc_numlinks_id;
 
-    ncstat = nc_def_var (nc_file_id, "remap_maxtrix", NC_DOUBLE, 2, nc_dims2_id, &nc_rmpmatrix_id);
+    ncstat = nc_def_var (nc_file_id, "remap_matrix", NC_DOUBLE, 2, nc_dims2_id, &nc_rmpmatrix_id);
     ERR
 
 
@@ -1044,9 +1044,9 @@ void write_remap_csm(char *map_name, char *interp_file_str, int direction)
 void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int num_weights)
 {
     log("sort add");
+    printf("num_links:%d\n", num_links);
     // local variables
     int add1_tmp, add2_tmp;     // temp for address during swap
-    int nwgt;
     int lvl, final_lvl;         // level indexes for heap sort levels
     int chk_lvl1, chk_lvl2, max_lvl;
 
@@ -1055,7 +1055,7 @@ void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int 
     /** start at the lowest level (N/2) of the tree and sift lower
       * values to the bottom of the tree, prompting the largest numbers
       **/
-    for (lvl = num_links/2; lvl > -1; lvl --)
+    for (lvl = num_links/2 - 1; lvl > -1; lvl --)
     {
         final_lvl = lvl;
         add1_tmp = add1[lvl];
@@ -1068,8 +1068,8 @@ void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int 
         // find the largest of the two daughters
         while (true)
         {
-            chk_lvl1 = 2 * final_lvl;           // left child
-            chk_lvl2 = 2 * final_lvl + 1;       // right child
+            chk_lvl1 = 2 * final_lvl + 1;       // left child
+            chk_lvl2 = 2 * final_lvl + 2;       // right child
 
             if ((add1[chk_lvl1] > add1[chk_lvl2]) ||
                     ((add1[chk_lvl1] == add1[chk_lvl2]) &&
@@ -1107,7 +1107,7 @@ void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int 
                 }
 
                 final_lvl = max_lvl;
-                if (final_lvl * 2 > num_links)
+                if (final_lvl * 2 + 1 > num_links - 1)
                 {
                     add1[final_lvl] = add1_tmp;
                     add2[final_lvl] = add2_tmp;
@@ -1119,52 +1119,94 @@ void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int 
                 }
             }
         }
-
-        /** now that the heap has been sorted, strip off the top (largest)
-         *  value and promote the values below
-         **/
-        int strip_wgtdex = 0;
-        for (lvl = num_links; lvl > 2; lvl --)
+    }  
+    for (lvl = 0; lvl < num_links / 2 - 1; lvl ++)
+    {
+        int left    = lvl * 2 + 1;
+        int right   = lvl * 2 + 2;
+        if (right > num_links - 1)
         {
-            // move the top value and insert it into the correct place
-            add1_tmp = add1[lvl];
-            add1[lvl] = add1[0];
+            right = left;
+        }
+        if ((add1[left] > add1[lvl]) || (add1[right] > add1[lvl]))
+        {
+            printf("build tree unsuccessfully\n");
+            printf("voilate at %d\n", lvl);
+            break;
+        }
+    }
+    if (lvl == num_links /2 - 1)
+    {
+        printf("Build tree successfully\n");
+    }
 
-            add2_tmp = add2[lvl];
-            add2[lvl] = add2[0];
-            strip_wgtdex = lvl * num_weights;   // header index
-            for (int i = 0; i < num_weights; i++)
+    /** now that the heap has been sorted, strip off the top (largest)
+     *  value and promote the values below
+     **/
+    for (lvl = num_links - 1; lvl > 1; lvl --)
+    {
+        // move the top value and insert it into the correct place
+        add1_tmp = add1[lvl];
+        add1[lvl] = add1[0];
+
+        add2_tmp = add2[lvl];
+        add2[lvl] = add2[0];
+        for (int i = 0; i < num_weights; i++)
+        {
+            wgttmp[i] = sortadd_weights[lvl * num_weights + i];
+            sortadd_weights[lvl * num_weights + i] = sortadd_weights[i];
+        }
+
+        // as above this loop sifts the tmp values down until proper level is reached
+        final_lvl = 0;
+            
+        //printf("get the %dth biggest number\n", num_links - 1 - lvl);
+
+        while (true)
+        {
+            // find the largest of the two daughters
+            chk_lvl1 = 2 * final_lvl + 1;
+            chk_lvl2 = 2 * final_lvl + 2;
+            if (chk_lvl2 > lvl - 1)
+                chk_lvl2 = chk_lvl1;
+
+            if ((add1[chk_lvl1] > add1[chk_lvl2]) ||
+                    ((add1[chk_lvl1] == add1[chk_lvl2]) &&
+                     (add2[chk_lvl1] > add2[chk_lvl2])))
             {
-                wgttmp[i] = sortadd_weights[strip_wgtdex + i];
-                sortadd_weights[strip_wgtdex + i] = sortadd_weights[i];
+                max_lvl = chk_lvl1;
+            }
+            else
+            {
+                max_lvl = chk_lvl2;
             }
 
-            // as above this loop sifts the tmp values down until proper level is reached
-            final_lvl = 0;
-
-            while (true)
-            {
-                // find the largest of the two daughters
-                chk_lvl1 = 2 * final_lvl;
-                chk_lvl2 = 2 * final_lvl + 1;
-                if (chk_lvl2 >= lvl)
-                    chk_lvl2 = chk_lvl1;
-
-                if ((add1[chk_lvl1] > add1[chk_lvl2]) ||
-                        ((add1[chk_lvl1] == add1[chk_lvl2]) &&
-                         (add2[chk_lvl1] > add2[chk_lvl2])))
-                {
-                    max_lvl = chk_lvl1;
-                }
-                else
-                {
-                    max_lvl = chk_lvl2;
-                }
-
-                // if the parent is greater than both daughters, the correct level had been found
-                if ((add1_tmp > add1[max_lvl]) ||
+            // if the parent is greater than both daughters, the correct level had been found
+            if ((add1_tmp > add1[max_lvl]) ||
                         ((add1_tmp == add1[max_lvl]) &&
                          (add2_tmp > add2[max_lvl])))
+            {
+                add1[final_lvl] = add1_tmp;
+                add2[final_lvl] = add2_tmp;
+                for (int i = 0; i < num_weights; i++)
+                {
+                    sortadd_weights[final_lvl * num_weights + i] = wgttmp[i];
+                }
+                break;
+            }
+
+            // otherwise, promote the largest daughter and push down one level in the tree. if haven't reached the end of the tree, repeat the process. otherwise store last values and exit the loop
+            else
+            {
+                add1[final_lvl] = add1[max_lvl];
+                add2[final_lvl] = add2[max_lvl];
+                for (int i = 0; i < num_weights; i++)
+                {
+                    sortadd_weights[final_lvl * num_weights + i] = sortadd_weights[max_lvl * num_weights + i];
+                }
+
+                final_lvl = max_lvl;
+                if (final_lvl * 2 + 1 > lvl - 1)
                 {
                     add1[final_lvl] = add1_tmp;
                     add2[final_lvl] = add2_tmp;
@@ -1173,30 +1215,7 @@ void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int 
                         sortadd_weights[final_lvl * num_weights + i] = wgttmp[i];
                     }
                     break;
-                }
-
-                // otherwise, promote the largest daughter and push down one level in the tree. if haven't reached the end of the tree, repeat the process. otherwise store last values and exit the loop
-                else
-                {
-                    add1[final_lvl] = add1[max_lvl];
-                    add2[final_lvl] = add2[max_lvl];
-                    for (int i = 0; i < num_weights; i++)
-                    {
-                        sortadd_weights[final_lvl * num_weights + i] = sortadd_weights[max_lvl * num_weights + i];
-                    }
-
-                    final_lvl = max_lvl;
-                    if (final_lvl * 2 > lvl)
-                    {
-                        add1[final_lvl] = add1_tmp;
-                        add2[final_lvl] = add2_tmp;
-                        for (int i = 0; i < num_weights; i++)
-                        {
-                            sortadd_weights[final_lvl * num_weights + i] = wgttmp[i];
-                        }
-                        break;
-                    }   
-                }
+                }   
             }
         }
     }
@@ -1215,5 +1234,20 @@ void sort_add(int *add1, int *add2, double *sortadd_weights, int num_links, int 
         wgttmp[i] = sortadd_weights[num_weights + i];
         sortadd_weights[num_weights + i] = sortadd_weights[i];
         sortadd_weights[i] = wgttmp[i];
+    }
+
+    // check correctness of heap sort
+    for (lvl = num_links - 1; lvl > 0; lvl --)
+    {
+        if (add1[lvl] < add1[lvl - 1])
+        {
+            printf("Heap Sort Wrong\n");
+            printf("voilate at %d and %d\n", lvl, lvl-1);
+            break;
+        }
+    }
+    if (lvl == 0)
+    {
+        printf("Heap Sort successfully\n");
     }
 }
