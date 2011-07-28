@@ -18,13 +18,10 @@
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
+#include <assert.h>
 
-#define _TEST_CONSERV_REMAP_            1
-#define _TEST_CONSERV_REMAP_2ND_ORDER_  1
-#define _TEST_CASE_                     3
-#define _TEST_CASE_1_                   ((_TEST_CASE_ - 2)*(_TEST_CASE_ - 3))
-#define _TEST_CASE_2_                   ((_TEST_CASE_ - 3)*(_TEST_CASE_ - 1))
-#define _TEST_CASE_3_                   ((_TEST_CASE_ - 1)*(_TEST_CASE_ - 2))
+#define USE_SECOND_ORDER    1
+
 using namespace std;
 int main()
 {
@@ -64,8 +61,6 @@ int main()
         cerr << "Unknown mapping method" << endl;
         return 1;
     }
-    printf("map_type: %d\n", map_type);
-    printf("num_wts: %d\n", num_wts);
 
     // normalize option settings; norm_opt declared in remap_vars.h
     if (streqls(normalize_opt, "none"))
@@ -91,6 +86,8 @@ int main()
 #endif
     // initialize some remapping variables
     init_remap_vars();
+    printf("map_type: %d\n", map_type);
+    printf("num_wts: %d\n", num_wts);
 
     // call appropriate interpolation setup routine based on type of remapping requested
     switch(map_type)
@@ -125,7 +122,8 @@ int main()
     // reduce size of remapping arrays and then write reammping info to a file
     if (num_links_map != max_links_map)
         resize_remap_vars(num_links_map - max_links_map);
-    
+
+#if BINARY_WEIGHT
     printf("compare result between me and SCRIP before write_remap\n");
     FILE * wts_out;     // file for output weights
     wts_out = fopen("weights.out", "w");
@@ -133,125 +131,176 @@ int main()
         printf("cannot open weights.out file\n");
     fwrite(wts_map, sizeof(double), num_links_map * num_wts, wts_out);
     fclose(wts_out);
+#endif
 
-    //printf("ready to write weights to NETCDF\n");
+    // write SCRIP conservative remap matrix
     write_remap(map_name, interp_file, output_opt);
+    
+#if USE_SECOND_ORDER
+    /* prepare neighborhood and gradient */
+    Neighborhood    *   neighbor            = new Neighborhood("source", grid1_size, -1);
+    double          *   delta_theta         = new double [128];    
+    double          *   delta_varphi        = new double [128];
+    double              sum_theta;
+    double              sum_varphi;
+    double              sum_theta_varphi;   
+    double              sum_theta_square;  
+    double              sum_varphi_square;
+    double              determine;       
+    
+    int                 num_grad_links      = 0;
+    for (int i = 0; i < neighbor->get_num_of_cells(); i++)          // consider neighbors
+        num_grad_links += neighbor->get_num_of_neighbor_cells(i);
+    num_grad_links += grid1_size;                                   // consider diaginal line
 
+    int             *   row_index           = new int [num_grad_links];
+    int             *   col_index           = new int [num_grad_links];
+    double          *   grad_lat            = new double [num_grad_links];
+    double          *   grad_lon            = new double [num_grad_links];
 
-#if _TEST_CONSERV_REMAP_
-    /* prepare test data from analytical function */
-    double * array1 = new double [grid1_size];      // exact data as input
-    double * array2 = new double [grid2_size];      // exact data for comparing with remapping results
-    double   lat, lon;
+    int sparse_matrix_id = 0;
+    bool diag_element = true;
     for (int cell = 0; cell < grid1_size; cell ++)
     {
-        lat = grid1_center_lat[cell];
-        lon = grid1_center_lon[cell];
-    #if _TEST_CASE_1_
-        array1[cell] = 1.0;
-    #endif
-    #if _TEST_CASE_2_
-        array1[cell] = cos(lat) * cos(lon);
-        //array1[cell] = cos(lat) * cos(lon);   // for conservative remapping, point value is not a good method, we should calculate area-average value
-    #endif
-    #if _TEST_CASE_3_
-        array1[cell] = 2 + cos(lat);
-    #endif
-    }
-
-    for (int cell = 0; cell < grid2_size; cell ++)
-    {
-        lat = grid2_center_lat[cell];
-        lon = grid2_center_lon[cell];
-    #if _TEST_CASE_1_
-        array2[cell] = 1.0;
-    #endif
-    #if _TEST_CASE_2_
-        array2[cell] = cos(lat) * cos(lon);
-    #endif
-    #if _TEST_CASE_3_
-        array2[cell] = 2 + cos(lat);
-    #endif
-    }
-
-    /* Calculate remapping result */
-    double * array2_1st = new double [grid2_size];           // allocate memory for remapping results
-    double * array2_2nd = new double [grid2_size];
-    double * array2_all = new double [grid2_size];
-    
-    memset(array2_1st, 0, grid2_size * sizeof(double));      // zero initalization
-    memset(array2_2nd, 0, grid2_size * sizeof(double));
-    memset(array2_all, 0, grid2_size * sizeof(double));
-
-
-    /* calculate first-order conservative remapping result */
-    num_wts = 3;
-    for (int link = 0; link < num_links_map; link ++)
-    {
-        array2_1st[grid2_add_map[link]] += wts_map[link * num_wts] * array1[grid1_add_map[link]];
-    }
-
-    #if _TEST_CONSERV_REMAP_2ND_ORDER_
-    /* calculate first-order conservative remapping result */
-    double * src_grad_lat  = new double [grid1_size];       // allocate memory for gradient
-    double * src_grad_lon  = new double [grid1_size];
-    memset(src_grad_lat, 0, sizeof(double) * grid1_size);   // zero initialization
-    memset(src_grad_lon, 0, sizeof(double) * grid1_size);
-    
-    Neighborhood * neighbor  = new Neighborhood("source", -1);
-
-    //neighbor->calculate_gradient_lat (src_grad_lat, src_array, grid1_size);
-    //neighbor->calculate_gradient_lon (src_grad_lon, src_array, grid1_size);
-    neighbor->calculate_gradient_latlon (src_grad_lat, src_grad_lon, array1, grid1_size);
-
-#if 0
-    // test gradients
-    for (int cell = 0; cell < grid1_size; cell ++)
-    {
-        printf("grad_lat(%3.6f) grad_lon(%3.6f)\n", src_grad_lat[cell], src_grad_lon[cell]);
-    }
-#endif
-
-    for (int link = 0; link < num_links_map; link ++)
-    {
-        array2_2nd[grid2_add_map[link]] += wts_map[link * num_wts + 1] * src_grad_lat[grid1_add_map[link]];
-        array2_2nd[grid2_add_map[link]] += wts_map[link * num_wts + 2] * src_grad_lon[grid1_add_map[link]];
-    }
-
-    #endif
-
-    /* add remapping results together */
-    for (int cell = 0; cell < grid2_size; cell ++)
-    {
-        array2_all[cell] = array2_1st[cell] + array2_2nd[cell];
-    }
-#if 0
-    /* test result */
-    for (int cell = 0; cell < grid2_size; cell ++)
-    {
-        if (grid2_frac[cell] > 0.001)
+        int     num_neighbor = neighbor->get_num_of_neighbor_cells(cell);
+        int *   neighbor_id  = neighbor->get_index_of_neighbor_cells(cell);
+        sum_theta = 0;
+        sum_varphi = 0;
+        for (int neighbor_cell = 0; neighbor_cell < num_neighbor; neighbor_cell ++)
         {
-            array2_1st[cell] /= grid2_frac[cell];
-            array2_all[cell] /= grid2_frac[cell];
+            delta_theta[neighbor_cell] = grid1_center_lat[neighbor_id[neighbor_cell]] - grid1_center_lat[cell];
+            delta_varphi[neighbor_cell] = grid1_center_lon[neighbor_id[neighbor_cell]] - grid1_center_lon[cell];
+            check_longitude(delta_varphi[neighbor_cell], -PI, PI);
+            sum_theta               += delta_theta[neighbor_cell];
+            sum_varphi              += delta_varphi[neighbor_cell];
+            sum_theta_varphi  += delta_theta[neighbor_cell] * delta_varphi[neighbor_cell];
+            sum_theta_square  += delta_theta[neighbor_cell] * delta_theta[neighbor_cell];
+            sum_varphi_square += delta_varphi[neighbor_cell] * delta_varphi[neighbor_cell];
         }
-        else
+        determine = sum_theta_square * sum_varphi_square 
+                  - sum_theta_varphi * sum_theta_varphi;
+        assert(determine > 1e-30);
+
+        // write value to matrix
+        diag_element = true;
+        for (int neighbor_cell = 0; neighbor_cell < num_neighbor; neighbor_cell ++)
         {
-            array2_1st[cell] = 0.0;
-            array2_all[cell] = 0.0;
+            if (diag_element && neighbor_cell < num_neighbor - 1 && neighbor_id[neighbor_cell + 1] > cell)
+            {
+                diag_element = false;
+                row_index[sparse_matrix_id] = cell;
+                col_index[sparse_matrix_id] = cell;
+                grad_lat [sparse_matrix_id] = - sum_varphi_square * sum_theta + sum_theta_varphi * sum_varphi;
+                grad_lat [sparse_matrix_id] /= determine;
+
+                grad_lon [sparse_matrix_id] = - sum_theta_square * sum_varphi + sum_theta_varphi * sum_theta;
+                grad_lon [sparse_matrix_id] /= determine;
+                sparse_matrix_id ++;
+            }
+            row_index[sparse_matrix_id] = cell;
+            col_index[sparse_matrix_id] = neighbor_cell;
+            grad_lat [sparse_matrix_id] = sum_varphi_square * delta_theta[neighbor_cell] - sum_theta_varphi * delta_varphi[neighbor_cell];
+            grad_lat [sparse_matrix_id] /= determine;
+
+            grad_lon [sparse_matrix_id] = sum_theta_square * delta_varphi[neighbor_cell] - sum_theta_varphi * delta_theta[neighbor_cell];
+            grad_lon [sparse_matrix_id] /= determine;
+            sparse_matrix_id ++;
+
+            if (diag_element && neighbor_cell == num_neighbor - 1)
+            {
+                diag_element = false;
+                row_index[sparse_matrix_id] = cell;
+                col_index[sparse_matrix_id] = cell;
+                grad_lat [sparse_matrix_id] = - sum_varphi_square * sum_theta + sum_theta_varphi * sum_varphi;
+                grad_lat [sparse_matrix_id] /= determine;
+
+                grad_lon [sparse_matrix_id] = - sum_theta_square * sum_varphi + sum_theta_varphi * sum_theta;
+                grad_lon [sparse_matrix_id] /= determine;
+                sparse_matrix_id ++;
+            }
         }
     }
-#endif
-    printf("Exact        First        Second\n");
-    for (int cell = 0; cell < grid2_size; cell ++)
+    assert(sparse_matrix_id == num_grad_links);
+
+#if CHECK_GRADIENT
+    printf("grat_lat\n");
+    for (int i = 0; i < num_grad_links; i++)
     {
-        printf("%3.6f    %3.6f    %3.6f\n", array2[cell], array2_1st[cell], array2_all[cell]);
+        if (grad_lat[i] > 0)
+            printf(" ");
+        printf("%5.10f\n", grad_lat[i]);
+    }
+    printf("grad_lon\n");
+    for (int i = 0; i < num_grad_links; i ++)
+    {
+        if (grad_lon[i] > 0)
+            printf(" ");
+        printf("%5.10f\n", grad_lon[i]);
     }
 #endif
-    delete array1;
-    delete array2;
-    delete array2_1st;
-    delete array2_2nd;
-    delete array2_all;
+    
+    int old_num_links = num_links_map;
+    int * src_address = new int [num_links_map];
+    int * dst_address = new int [num_links_map];
+    double * map_weights  = new double [num_links_map * num_wts];
+    memcpy(src_address, grid1_add_map, sizeof(int) * num_links_map);
+    memcpy(dst_address, grid2_add_map, sizeof(int) * num_links_map);
+    memcpy(map_weights, wts_map, sizeof(double) * num_links_map * num_wts);
+
+    finalize_remap_vars();
+    delete [] src_link_add;
+    delete [] dst_link_add;
+
+    map_type = 999;                     // to make num_wgts = 1
+    first_call_store = true;
+    init_remap_vars();
+    printf("max_links_map: %d\n", max_links_map);
+    printf("num_links_map: %d\n", num_links_map);
+    printf("old_num_links: %d\n", old_num_links);
+    printf("num_grad_links: %d\n", num_grad_links);
+    printf("map_type: %d\n", map_type);
+    printf("num_wts: %d\n", num_wts);
+
+    /*
+       dst*src by src*src 
+       ==> (dst_w, src_w, value_w) -- (row_g, col_g, grad_g) any two triple entries
+       ==> if (src_w == row_g) then value_w * grad_g contribues to (dst_w, col_g) in result matrix
+    */
+    double sparse_tmp;
+    double * weight_tmp = new double [1];
+    for (int w = 0; w < old_num_links; w ++)
+    {
+        * weight_tmp = map_weights[w * 3];
+        store_link_cnsrv(src_address[w], dst_address[w], weight_tmp, num_wts);
+        for (int g = 0; g < num_grad_links; g ++)
+        {
+            if (src_address[w] == row_index[g])
+            {
+                sparse_tmp =    map_weights[w * 3 + 1] * grad_lat[g];
+                sparse_tmp +=   map_weights[w * 3 + 2] * grad_lon[g];
+                store_link_cnsrv(col_index[g], dst_address[w],  &sparse_tmp, num_wts);
+            }
+        }
+    }
+#endif
+    printf("num_links_map: %d\n", num_links_map);
+    printf("max_links_map: %d\n", max_links_map);
+    // reduce size of remapping arrays and then write reammping info to a file
+    if (num_links_map != max_links_map)
+        resize_remap_vars(num_links_map - max_links_map);
+
+    // write our conservative remap matrix
+    write_remap(map_name, "SSQoutput2.nc", output_opt);
+
+#if USE_SECOND_ORDER
+    // free
+    delete [] row_index;
+    delete [] col_index;
+    delete [] grad_lat;
+    delete [] grad_lon;
+    delete [] delta_theta;
+    delete [] delta_varphi;
+#endif
     //finalize_intersection();
     finalize_remap_conserv();
     finalize_remap_vars();

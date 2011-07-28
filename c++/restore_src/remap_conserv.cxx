@@ -1,10 +1,10 @@
 #include "remap_conserv.h"
 #include "debug.h"
 
-double *grid2_centroid_lat; // centroid coords on each grid
-double *grid2_centroid_lon;
-double *grid1_centroid_lat;
-double *grid1_centroid_lon;
+double  *       grid2_centroid_lat; // centroid coords on each grid
+double  *       grid2_centroid_lon;
+double  *       grid1_centroid_lat;
+double  *       grid1_centroid_lon;
 
 /** this routine traces the perimeters of every grid cell on each
  *  grid checking for intersections with the other grid and computing
@@ -34,9 +34,13 @@ void remap_conserv()
     srch_add = new int [SRCH_SIZE];
     srch_corner_lat = new double [SRCH_SIZE * SRCH_CORNER_MAX];
     srch_corner_lon = new double [SRCH_SIZE * SRCH_CORNER_MAX];
+    srch_corner_x   = new double [SRCH_SIZE * SRCH_CORNER_MAX];
+    srch_corner_y   = new double [SRCH_SIZE * SRCH_CORNER_MAX];
     memset(srch_add, -1, sizeof(int) * SRCH_SIZE);
     memset(srch_corner_lat, 0, sizeof(double) * SRCH_SIZE * SRCH_CORNER_MAX);
     memset(srch_corner_lon, 0, sizeof(double) * SRCH_SIZE * SRCH_CORNER_MAX);
+    memset(srch_corner_x, 0, sizeof(double) * SRCH_SIZE * SRCH_CORNER_MAX);
+    memset(srch_corner_y, 0, sizeof(double) * SRCH_SIZE * SRCH_CORNER_MAX);
 
     int max_subseg = 1000;      // max number of subsegments per segment to prevent infinite loop
     int num_subseg;             // number of subsegments
@@ -360,6 +364,17 @@ void remap_conserv()
                     if (num_subseg > max_subseg)
                     {
                         printf("Integrate stalled: num_subseg exceeded limit @ grid2 %d\n", grid2_add);
+                        printf("grid2_center_lat[%d] = %3.6f\n", grid2_add, grid2_center_lat[grid2_add]);
+                        printf("grid2_center_lon[%d] = %3.6f\n", grid2_add, grid2_center_lon[grid2_add]);
+                        printf("grid2_corner_lat[%d][0] = %3.6f\n", grid2_add, grid2_corner_lat[grid2_add * 4]);
+                        printf("grid2_corner_lon[%d][0] = %3.6f\n", grid2_add, grid2_corner_lon[grid2_add * 4]);
+                        printf("grid2_corner_lat[%d][1] = %3.6f\n", grid2_add, grid2_corner_lat[grid2_add * 4 + 1]);
+                        printf("grid2_corner_lon[%d][1] = %3.6f\n", grid2_add, grid2_corner_lon[grid2_add * 4 + 1]);
+                        printf("grid2_corner_lat[%d][2] = %3.6f\n", grid2_add, grid2_corner_lat[grid2_add * 4 + 2]);
+                        printf("grid2_corner_lon[%d][2] = %3.6f\n", grid2_add, grid2_corner_lon[grid2_add * 4 + 2]);
+                        printf("grid2_corner_lat[%d][3] = %3.6f\n", grid2_add, grid2_corner_lat[grid2_add * 4 + 3]);
+                        printf("grid2_corner_lon[%d][3] = %3.6f\n", grid2_add, grid2_corner_lon[grid2_add * 4 + 3]);
+                        return;
                     }
 
                     // find next intersection of this segment with a grid line on dst grid

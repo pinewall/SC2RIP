@@ -3,9 +3,11 @@
 #include "namelist.h"
 
 char * grid1_file = "T42.nc";
-char * grid2_file = "POP43.nc";
-char * interp_file = "interp_remap.nc";
-char * map_name = "T42-to-POP43";
+char * grid2_file = "G128.nc";
+//char * grid2_file = "POP43.nc";
+char * interp_file = "SSQoutput1.nc";
+char * map_name = "T42-to-G128";
+//char * map_name = "T42-to-POP43";
 char * map_method = "conservative";
 char * normalize_opt = "destarea";
 int output_opt = SCRIP_CONVENTION;

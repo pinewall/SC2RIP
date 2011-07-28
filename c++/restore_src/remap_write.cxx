@@ -91,8 +91,9 @@ void write_remap(char *map_name, char *interp_file_str, int output_opt)
             strcpy(map_method_write, "Distance weighted avg of nearest neighbors");
             break;
         default:
-            log("Invaild Map Type");
-            return;
+            strcpy(map_method_write, "Second Order Conservative remapping");
+            //log("Invaild Map Type");
+            //return;
     }
 
                                 // date & history

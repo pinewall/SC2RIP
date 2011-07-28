@@ -46,7 +46,6 @@ void init_remap_vars()
      **/
     num_links_map = 0;
     max_links_map = 8 * grid2_size;
-    //max_links_map = 4 * grid2_size;
     resize_increment = 0.1 * MAX(grid1_size, grid2_size);
 
     // allocate address and weight arrays for mapping

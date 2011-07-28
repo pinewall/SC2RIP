@@ -307,12 +307,12 @@ void grid_init_dst(char *grid_dst_file)
         int index = 0;
         for (int i = 0; i < grid2_size; i++)
         {
-            grid2_corner_lat[i] *= deg2rad;
-            grid2_corner_lon[i] *= deg2rad;
+            grid2_center_lat[i] *= deg2rad;
+            grid2_center_lon[i] *= deg2rad;
             for (int j = 0; j < grid2_corners_max; j++)
             {
-                grid2_center_lat[index + j] *= deg2rad;
-                grid2_center_lon[index + j] *= deg2rad;
+                grid2_corner_lat[index + j] *= deg2rad;
+                grid2_corner_lon[index + j] *= deg2rad;
             }
             index += grid2_corners_max;
         }

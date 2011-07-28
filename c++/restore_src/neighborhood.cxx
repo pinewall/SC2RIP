@@ -4,23 +4,13 @@
  *  Authoer: pinewall
  */
 
-#include "grids.h"
-#include "gradient.h"
-#include "remap_conserv.h"
 #include "neighborhood.h"
 #include <string.h>
 
-Neighborhood::Neighborhood ( char * grid_name, int num_of_neighbors )
+Neighborhood::Neighborhood ( char * grid_name, int grid_size, int num_of_neighbors )
 {
     /* initialization of data */
-    if (strcmp(grid_name,"source") == 0)
-    {
-        num_of_cells = grid1_size;
-    }
-    else if (strcmp(grid_name, "destination") == 0)
-    {
-        num_of_cells = grid2_size;
-    }
+    num_of_cells = grid_size;
     num_of_neighbor_cells   = new int [num_of_cells];
 
     // allocate memory
@@ -57,30 +47,6 @@ Neighborhood::Neighborhood ( char * grid_name, int num_of_neighbors )
         }
     }
 
-    // redirect const pointers to extern variables we need
-    if (strcmp(grid_name,"source") == 0)
-    {
-        grid_center_lat     = grid1_center_lat;
-        grid_center_lon     = grid1_center_lon;
-        grid_centroid_lat   = grid1_centroid_lat;
-        grid_centroid_lon   = grid1_centroid_lon;
-        grid_corner_lat     = grid1_corner_lat;
-        grid_corner_lat     = grid1_corner_lon;
-        grid_mask           = grid1_mask;
-        grid_corners        = grid1_corners;
-    }
-    else if (strcmp(grid_name, "destination") == 0)
-    {
-        grid_center_lat     = grid2_center_lat;
-        grid_center_lon     = grid2_center_lon;
-        grid_centroid_lat   = grid2_centroid_lat;
-        grid_centroid_lon   = grid2_centroid_lon;
-        grid_corner_lat     = grid2_corner_lat;
-        grid_corner_lat     = grid2_corner_lon;
-        grid_mask           = grid2_mask;
-        grid_corners        = grid2_corners;
-    }
-
     /* calculate neighborhood */
     if (num_of_neighbors == -1)
     {
@@ -115,7 +81,7 @@ void Neighborhood::find_latlon_neighborhood()
         {
             left    = (lon + num_of_different_lons - 1) % num_of_different_lons;
             right   = (lon + 1) % num_of_different_lons;
-            if (lat == 0)
+            if (lat == num_of_different_lats - 1)
             {
                 index_of_neighbor_cells[cell][0] = curr + left;
                 index_of_neighbor_cells[cell][1] = south + left;
@@ -123,7 +89,7 @@ void Neighborhood::find_latlon_neighborhood()
                 index_of_neighbor_cells[cell][3] = south + right;
                 index_of_neighbor_cells[cell][4] = curr + right;
             }
-            else if (lat == num_of_different_lats - 1)
+            else if (lat == 0)
             {
                 index_of_neighbor_cells[cell][0] = curr + right;
                 index_of_neighbor_cells[cell][1] = north + right;
@@ -151,32 +117,17 @@ void Neighborhood::find_exact_num_neighborhood()
 {
 }
 
-void Neighborhood::calculate_gradient_latlon (double * result_lat, double * result_lon, const double * field_value, int grid_size)
+int Neighborhood::get_num_of_cells()
 {
-    for (int cell = 0; cell < grid_size; cell ++)
-    {
-        calculate_derivative_latlon_least_square_method(result_lat[cell], result_lon[cell], cell, grid_centroid_lat, grid_centroid_lon, 
-            num_of_neighbor_cells[cell], index_of_neighbor_cells[cell], grid_center_lat, grid_center_lon, 
-            field_value);
-    }
+    return num_of_cells;
 }
 
-void Neighborhood::calculate_gradient_lat (double * result_lat, const double * field_value, int grid_size)
+int Neighborhood::get_num_of_neighbor_cells(int cell)
 {
-    for (int cell = 0; cell < grid_size; cell ++)
-    {
-        calculate_derivative_lat_least_square_method(result_lat[cell], cell, grid_centroid_lat, grid_centroid_lon, 
-            num_of_neighbor_cells[cell], index_of_neighbor_cells[cell], grid_center_lat, grid_center_lon, 
-            field_value);
-    }
+    return num_of_neighbor_cells[cell];
 }
 
-void Neighborhood::calculate_gradient_lon (double * result_lon, const double * field_value, int grid_size)
+int * Neighborhood::get_index_of_neighbor_cells(int cell)
 {
-    for (int cell = 0; cell < grid_size; cell ++)
-    {
-        calculate_derivative_lon_least_square_method(result_lon[cell], cell, grid_centroid_lat, grid_centroid_lon, 
-            num_of_neighbor_cells[cell], index_of_neighbor_cells[cell], grid_center_lat, grid_center_lon, 
-            field_value);
-    }
+    return index_of_neighbor_cells[cell];
 }

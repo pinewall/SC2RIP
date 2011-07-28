@@ -1,6 +1,6 @@
 &remap_inputs
     num_maps = 1
-    grid2_file = 'grids/remap_grid_POP43.nc'
+    grid2_file = 'grids/G128.nc'
     grid1_file = 'grids/remap_grid_T42.nc'
     interp_file1 = 'rmp_POP43_to_T42_conserv.nc'
     interp_file2 = 'rmp_T42_to_POP43_conserv.nc'

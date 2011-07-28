@@ -6,19 +6,29 @@
 #include "constants.h"
 
 // threshhold precompile constants
+//#define NORTH_THRESH (1.45)
 #define NORTH_THRESH (2.00)
 #define SOUTH_THRESH (-2.00)
 #define tiny (1e-14)
 
 // declare extern variables
-extern unsigned int num_srch_cells;      // num cells in restricted search arrays
-extern int *srch_add;           // global address of cells in srch arrays
-extern double *srch_corner_lat;    // lat of each corner of srch cells
-extern double *srch_corner_lon;    // lon of each corner of srch cells
-extern int last_loc;        // save location when crossing threshold
-extern bool lthresh;        // flags segments crossing threshold bndy
-extern double intrsct_lat_off;     // latitude coords offset for next search
-extern double intrsct_lon_off;     // longitude coords offset for next search
+extern unsigned int     num_srch_cells;         // num cells in restricted search arrays
+extern int      *       srch_add;               // global address of cells in srch arrays
+extern double   *       srch_corner_lat;        // lat of each corner of srch cells
+extern double   *       srch_corner_lon;        // lon of each corner of srch cells
+extern double   *       srch_corner_x;          // x of each corner of srch cells
+extern double   *       srch_corner_y;          // y of each corner of srch cells
+extern int              last_loc;               // save location when crossing threshold
+extern bool             lthresh;                // flags segments crossing threshold bndy
+extern bool             luse_last;              //
+
+extern double           intrsct_lat_off;        // latitude coords offset for next search
+extern double           intrsct_lon_off;        // longitude coords offset for next search
+extern double           intrsct_x;
+extern double           intrsct_y;
+
+extern int              avoid_pole_count;
+extern double           avoid_pole_offset;
 
 /** this routine finds the next intersection of a destination grid
   * line with the line segment given by beglon, endlon, etc.
@@ -47,7 +57,7 @@ void ll_gc_intersection(int &location,
 
 // reserved for SCRIP
 void pole_intersection(int &location, 
-        double &intrsct_lat, double &intrsct_lon, bool &lcoinc, 
+        double &intrsct_lat, double &intrsct_lon, bool &lcoinc, bool &lthresh,
         double beglat, double beglon, double endlat, double endlon, 
         double *begseg, bool lbegin, bool lrevers);
 
